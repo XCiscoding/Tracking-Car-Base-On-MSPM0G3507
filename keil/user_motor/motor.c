@@ -83,6 +83,9 @@ static uint32_t get_tick_ms(void) {
     return g_sysTickCount;
 }
 
+/* 供外部模块使用的毫秒计时接口 */
+uint32_t Motor_GetTickMs(void) { return g_sysTickCount; }
+
 void delay_ms(uint32_t ms) {
     uint32_t start = get_tick_ms();
     while ((get_tick_ms() - start) < ms) {}
@@ -93,35 +96,37 @@ static void Motor_InitTick(void) {
     SysTick_Config(32000);
 }
 
-// ---------- 编码器累计 (防回绕) ----------
-static uint32_t encoder_last_raw = 0;
-static int32_t encoder_accumulated = 0;
-static void encoder_update(void) {
-    uint32_t raw = DL_TimerG_getTimerCount(QEI_LEFT_INST);
-    int32_t diff = (int32_t)(raw - encoder_last_raw);
-    encoder_accumulated += diff;
-    encoder_last_raw = raw;
+/* ======== 编码器脉冲计数 (中断驱动) ========
+ * TIMG0_IRQHandler 在 PA12 每个上升沿对 g_pulse_left ++
+ * TIMG8_IRQHandler 在 PB16 每个上升沿对 g_pulse_right ++
+ * Encoder_GetPulse() 返回两轮均均値，小车只前进不后退，无需符号
+ */
+static volatile uint32_t g_pulse_left  = 0;
+static volatile uint32_t g_pulse_right = 0;
+
+void Encoder_Reset(void)
+{
+    g_pulse_left  = 0;
+    g_pulse_right = 0;
+    last_pulse    = 0;
 }
 
-void Encoder_Reset(void) {
-    encoder_accumulated = 0;
-    encoder_last_raw = DL_TimerG_getTimerCount(QEI_LEFT_INST);
-    last_pulse = 0;
+int32_t Encoder_GetPulse(void)
+{
+    /* 两轮均均，长居正数范围内 */
+    return (int32_t)((g_pulse_left + g_pulse_right) / 2u);
 }
 
-int32_t Encoder_GetPulse(void) {
-    encoder_update();
-    return encoder_accumulated;
-}
-
-float Encoder_GetDistanceMM(void) {
+float Encoder_GetDistanceMM(void)
+{
     return (float)Encoder_GetPulse() * DIST_PER_PULSE;
 }
 
-bool Encoder_IsStuck(void) {
+bool Encoder_IsStuck(void)
+{
     int32_t now = Encoder_GetPulse();
-    bool stuck = (now == last_pulse);
-    last_pulse = now;
+    bool stuck  = (now == last_pulse);
+    last_pulse  = now;
     return stuck;
 }
 
@@ -204,20 +209,18 @@ bool Motor_IsMoving(void) {
 void Motor_Tick(void) {
     if (motor_state != STATE_MOVING_ASYNC) return;
     uint32_t now = get_tick_ms();
+    int32_t  cur = Encoder_GetPulse();
 
-    encoder_update();
-    int32_t cur = encoder_accumulated;
-
-    // 到达目标脉冲 或 超时
-    if (cur >= target_pulse || (now - start_tick) >= timeout_ms) {
+    /* 到达目标脉冲 或 超时 */
+    if ((uint32_t)cur >= target_pulse || (now - start_tick) >= timeout_ms) {
         Motor_Stop();
         motor_state = STATE_IDLE;
         return;
     }
 
-    // 堵转检测 (每200ms检查一次)
+    /* 堵转检测 (200ms 检查一次) */
     static uint32_t last_check = 0;
-    if (now - last_check >= 200) {
+    if (now - last_check >= 200u) {
         if (cur == last_pulse) {
             Motor_Stop();
             motor_state = STATE_IDLE;
@@ -231,3 +234,27 @@ void Motor_Tick(void) {
 // ---------- 状态查询 ----------
 uint16_t Motor_GetLeftDuty(void)  { return s_left_duty;  }
 uint16_t Motor_GetRightDuty(void) { return s_right_duty; }
+
+/* ======== 编码器 ISR ========
+ * TIMG0 CCP0 (PA12) —— 左转轮 A 相上升沿
+ * TIMG8 CCP1 (PB16) —— 右转轮 A 相上升沿
+ * 只前进不后退，无需方向判断，直接累加
+ */
+void TIMG0_IRQHandler(void)
+{
+    /* 清 CC0_DN_EVENT 标志（EDGE_TIME 为下计数器，上升沿捕获 → DN 事件） */
+    DL_TimerG_clearInterruptStatus(QEI_LEFT_INST,
+        DL_TIMER_INTERRUPT_CC0_DN_EVENT);
+    g_pulse_left++;
+}
+
+void TIMG8_IRQHandler(void)
+{
+    DL_TimerG_clearInterruptStatus(QEI_RIGHT_INST,
+        DL_TIMER_INTERRUPT_CC1_DN_EVENT);
+    g_pulse_right++;
+}
+
+/* 调试用：左右轮独立脉冲计数 */
+uint32_t Encoder_GetLeftPulse(void)  { return g_pulse_left;  }
+uint32_t Encoder_GetRightPulse(void) { return g_pulse_right; }

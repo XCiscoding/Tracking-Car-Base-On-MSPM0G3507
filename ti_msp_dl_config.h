@@ -75,6 +75,13 @@ extern "C" {
 #define CPUCLK_FREQ                                                     32000000
 
 
+/* clang-format on */
+
+void SYSCFG_DL_init(void);
+void SYSCFG_DL_initPower(void);
+void SYSCFG_DL_GPIO_init(void);
+void SYSCFG_DL_SYSCTL_init(void);
+
 /* I2C_OLED: I2C0, SDA=PA0, SCL=PA1 */
 #define I2C_OLED_INST                                                       (I2C0)
 #define I2C_OLED_BUS_SPEED_HZ                                            (100000)
@@ -98,17 +105,20 @@ extern "C" {
 #define PWM_LEFT_INST                                                    (TIMA0)
 #define PWM_LEFT_IOMUX                                          (IOMUX_PINCM19)
 #define PWM_LEFT_IOMUX_FUNC                          IOMUX_PINCM19_PF_TIMA0_CCP0
-#define PWM_LEFT_IDX                                      (DL_TIMER_CC_0_INDEX)
+#define PWM_LEFT_IDX                                     (DL_TIMER_CC_0_INDEX)
 
 #define MOTOR_AIN1_PORT                                                  (GPIOA)
-#define MOTOR_AIN1_PIN_0_PIN                                  (DL_GPIO_PIN_13)
+#define MOTOR_AIN1_PIN_0_PIN                                (DL_GPIO_PIN_13)
 #define MOTOR_AIN1_IOMUX                                        (IOMUX_PINCM35)
 
 #define MOTOR_AIN2_PORT                                                  (GPIOA)
-#define MOTOR_AIN2_PIN_1_PIN                                  (DL_GPIO_PIN_14)
+#define MOTOR_AIN2_PIN_1_PIN                                (DL_GPIO_PIN_14)
 #define MOTOR_AIN2_IOMUX                                        (IOMUX_PINCM36)
 
-/* ======== RIGHT MOTOR ========
+void SYSCFG_DL_PWM_LEFT_init(void);
+void SYSCFG_DL_PWM_RIGHT_init(void);
+
+/* ======== RIGHT MOTOR (双轮阶段实装) ========
  * PWM:       PA24(PINCM54) -> TIMA1 CC1
  * Direction: BIN1=PA16(PINCM38), BIN2=PA17(PINCM39), both GPIOA output
  */
@@ -118,28 +128,64 @@ extern "C" {
 #define PWM_RIGHT_IDX                                    (DL_TIMER_CC_1_INDEX)
 
 #define MOTOR_BIN1_PORT                                                  (GPIOA)
-#define MOTOR_BIN1_PIN_2_PIN                                  (DL_GPIO_PIN_16)
+#define MOTOR_BIN1_PIN_2_PIN                                (DL_GPIO_PIN_16)
 #define MOTOR_BIN1_IOMUX                                        (IOMUX_PINCM38)
 #define MOTOR_BIN2_PORT                                                  (GPIOA)
-#define MOTOR_BIN2_PIN_3_PIN                                  (DL_GPIO_PIN_17)
+#define MOTOR_BIN2_PIN_3_PIN                                (DL_GPIO_PIN_17)
 #define MOTOR_BIN2_IOMUX                                        (IOMUX_PINCM39)
 
-/* ======== ENCODER (占位，后续阶段实装) ========
- * PA12(PINCM34) -> TIMG0 CCP0, edge-count mode
+/* ======== LEFT ENCODER: PA12(PINCM34) -> TIMG0 CCP0 上升沿捕获中断 ========
+ * 每个编码器 A 相上升沿触发 CC0 捕获中断，ISR 在 motor.c 中实现
  */
 #define QEI_LEFT_INST                                                    (TIMG0)
+#define QEI_LEFT_NVIC_IRQn                                    TIMG0_INT_IRQn
+#define QEI_LEFT_IRQHandler                                   TIMG0_IRQHandler
 
-/* clang-format on */
+#define GPIO_ENC_LEFT_PORT                                              (GPIOA)
+#define GPIO_ENC_LEFT_PIN                                    (DL_GPIO_PIN_12)
+#define GPIO_ENC_LEFT_IOMUX                                     (IOMUX_PINCM34)
+#define GPIO_ENC_LEFT_FUNC                          IOMUX_PINCM34_PF_TIMG0_CCP0
 
-void SYSCFG_DL_init(void);
-void SYSCFG_DL_initPower(void);
-void SYSCFG_DL_GPIO_init(void);
-void SYSCFG_DL_SYSCTL_init(void);
+/* ======== RIGHT ENCODER: PB16(PINCM33) -> TIMG8 CCP1 ========
+ * 每个编码器 A 相上升沿产生捕获中断，ISR 中累计脉冲数
+ */
+#define QEI_RIGHT_INST                                                   (TIMG8)
+#define QEI_RIGHT_NVIC_IRQn                                   TIMG8_INT_IRQn
+#define QEI_RIGHT_IRQHandler                                  TIMG8_IRQHandler
+
+#define GPIO_ENC_RIGHT_PORT                                             (GPIOB)
+#define GPIO_ENC_RIGHT_PIN                                  (DL_GPIO_PIN_16)
+#define GPIO_ENC_RIGHT_IOMUX                                    (IOMUX_PINCM33)
+#define GPIO_ENC_RIGHT_FUNC                         IOMUX_PINCM33_PF_TIMG8_CCP1
+
+/* ======== UART1 (ATK-IMU901): PB6=TX(PINCM23), PB7=RX(PINCM24), 115200 ========
+ * MCU UART1_TX -> PB6 -> IMU_RX
+ * MCU UART1_RX -> PB7 -> IMU_TX
+ */
+#define UART_IMU_INST                                                   (UART1)
+#define UART_IMU_IRQHandler                                   UART1_IRQHandler
+#define UART_IMU_NVIC_IRQn                                    UART1_INT_IRQn
+#define UART_IMU_BAUD                                                  115200U
+
+#define GPIO_UART_IMU_TX_PORT                                           (GPIOB)
+#define GPIO_UART_IMU_TX_PIN                                 (DL_GPIO_PIN_6)
+#define GPIO_UART_IMU_TX_IOMUX                                  (IOMUX_PINCM23)
+#define GPIO_UART_IMU_TX_FUNC                        IOMUX_PINCM23_PF_UART1_TX
+
+#define GPIO_UART_IMU_RX_PORT                                           (GPIOB)
+#define GPIO_UART_IMU_RX_PIN                                 (DL_GPIO_PIN_7)
+#define GPIO_UART_IMU_RX_IOMUX                                  (IOMUX_PINCM24)
+#define GPIO_UART_IMU_RX_FUNC                        IOMUX_PINCM24_PF_UART1_RX
+
+/* ======== BUZZER: PB17(PINCM43), GPIO 输出, 低电平触发有源蜂鸣器 ======== */
+#define GPIO_BUZZER_PORT                                                (GPIOB)
+#define GPIO_BUZZER_PIN                                      (DL_GPIO_PIN_17)
+#define GPIO_BUZZER_IOMUX                                       (IOMUX_PINCM43)
+
 void SYSCFG_DL_I2C_OLED_init(void);
-void SYSCFG_DL_PWM_LEFT_init(void);
-void SYSCFG_DL_PWM_RIGHT_init(void);
-
-
+void SYSCFG_DL_UART_IMU_init(void);
+void SYSCFG_DL_ENCODER_LEFT_init(void);
+void SYSCFG_DL_ENCODER_RIGHT_init(void);
 
 #ifdef __cplusplus
 }

@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>__MSPM0G3507__</Define>
               <Undefine></Undefine>
-              <IncludePath>.;C:\ti\mspm0_sdk_2_01_00_03\source\third_party\CMSIS\Core\Include;C:\ti\mspm0_sdk_2_01_00_03\source;.\user_oled;.\user_motor</IncludePath>
+              <IncludePath>.;C:\ti\mspm0_sdk_2_01_00_03\source\third_party\CMSIS\Core\Include;C:\ti\mspm0_sdk_2_01_00_03\source;.\user_oled;.\user_motor;.\user_imu;.\user_buzzer</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -458,6 +458,36 @@
               <FileName>motor.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\user_motor\motor.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Imu</GroupName>
+          <Files>
+            <File>
+              <FileName>imu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\user_imu\imu.c</FilePath>
+            </File>
+            <File>
+              <FileName>imu.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\user_imu\imu.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Buzzer</GroupName>
+          <Files>
+            <File>
+              <FileName>buzzer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\user_buzzer\buzzer.c</FilePath>
+            </File>
+            <File>
+              <FileName>buzzer.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\user_buzzer\buzzer.h</FilePath>
             </File>
           </Files>
         </Group>

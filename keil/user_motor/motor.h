@@ -33,15 +33,18 @@ void Motor_GoDistanceAsync(uint32_t distance_mm, uint16_t speed, uint32_t timeou
 bool Motor_IsMoving(void);                                            // 查询是否在运动中
 
 // ---------- 编码器 ----------
-void    Encoder_Reset(void);            // 清零编码器计数值
-int32_t Encoder_GetPulse(void);         // 获取有符号脉冲数 (前进为正)
-float   Encoder_GetDistanceMM(void);    // 获取累计距离 (毫米)
+void     Encoder_Reset(void);            // 清零编码器计数值
+int32_t  Encoder_GetPulse(void);         // 左右均均脉冲数
+float    Encoder_GetDistanceMM(void);    // 均均距离 (mm)
+uint32_t Encoder_GetLeftPulse(void);     // 调试用：左轮原始脉冲数
+uint32_t Encoder_GetRightPulse(void);    // 调试用：右轮原始脉冲数
 
 // ---------- 故障检测 ----------
 bool Encoder_IsStuck(void);             // 检测是否堵转 (电机转动但编码器无变化)
 
 // ---------- 延时工具 ----------
-void delay_ms(uint32_t ms);             // 基于 SysTick，需在 Motor_Init() 后使用
+void     delay_ms(uint32_t ms);         // 基于 SysTick，需在 Motor_Init() 后使用
+uint32_t Motor_GetTickMs(void);         // 返回系统运行毫秒数
 
 // ---------- 状态查询 ----------
 uint16_t Motor_GetLeftDuty(void);       // 当前左轮实际占空比 (0~1000，含限幅)

@@ -1,7 +1,107 @@
-# Agent 交接滚动文件：OLED 显示修复完成，待 Keil Rebuild + Download 验证
+# Agent 交接滚动文件：编码器脉冲验证通过，待实现 IMU/蜂鸣器/灰度/状态机
 
-最后更新：2026-05-20（第二次 Session）
-当前结论：OLED 显示乱码问题已从根因修复。Motor_Init HardFault / Motor_Stop 未执行 / 字符残留三层问题全部解决。当前代码可编译（预期 0 Error 0 Warning），待 Keil Rebuild → Download 验证。
+最后更新：2026-05-21（第四次 Session）
+当前结论：左右编码器均已配置完毕，左轮实测脉冲计数成功。硬件已正常（VCC/GND 反接已修复）。下一步验证右编码器，然后实现 IMU、蜂鸣器模块，再重写 empty.c 为状态机。
+
+---
+
+## 2026-05-21 Session 总结（第四次）：编码器调试全过程，脉冲验证成功
+
+### 完成内容
+
+1. **empty.c 主函数重写为编码器纯调试模式**：去掉双阶段跑车逻辑，改为：
+   - `Encoder_Reset()` 清零
+   - `while(1) { oled_show_encoder(); delay_ms(200); }` 实时刷新
+   - OLED 显示：`L:xxxxxx R:xxxxxx Avg:xxxxx`
+
+2. **编码器中断事件类型确认（重要）**：
+   - `DL_TIMER_CAPTURE_MODE_EDGE_TIME` = **DOWN 计数器**（SDK 注释明确）
+   - DOWN 计数器捕获上升沿时，产生的是 `CC0_DN_EVENT`，不是 `CC0_UP_EVENT`
+   - 曾误改 DN→UP（引入新 bug），后通过读 `dl_timer.c` 源码确认后还原
+   - **最终正确配置**：`EDGE_TIME` + `RISING` + `CC0_DN_EVENT` / `CC1_DN_EVENT`
+
+3. **根因：编码器 VCC/GND 反接**：
+   - 现象：浮空时脉冲累积，接信号线后脉冲立停，转轮无反应
+   - 真正根因不是软件，而是接线错误——编码器的 VCC 和 GND 接反了
+   - 用万用表逐根测量各线：恒定 ~3V→VCC，恒定 0V→GND，转动有切换→A 相
+   - 用户将 VCC/GND 对调后，A 相信号恢复正常 0-3.3V 切换
+
+4. **左轮编码器实测验证通过**：烧录后缓慢转左轮，OLED `L:` 行数字正常累积 ✅
+
+5. **新增 API**：
+   - `Encoder_GetLeftPulse()` — 返回左轮原始脉冲计数（uint32_t）
+   - `Encoder_GetRightPulse()` — 返回右轮原始脉冲计数（uint32_t）
+   - `Motor_GetTickMs()` — 返回 SysTick 毫秒计数（用于超时保护）
+
+### 关键教训（已写入 Bug 手册）
+
+```
+Bug 16: EDGE_TIME = DOWN 计数器 → CC0_DN_EVENT
+        EDGE_TIME_UP = UP 计数器 → CC0_UP_EVENT
+        UP/DN 指计数方向，与边沿极性无关。遇到此类问题先读 dl_timer.c 源码。
+
+Bug 17: 浮空有计数+接信号无计数 → 先用万用表确认信号线是否有变化，再动软件配置。
+        推挽输出不能直接短接 GND（会短路供电导致系统重置），只用万用表被动测量。
+```
+
+### 改动文件清单
+
+```text
+keil/empty.c (→ 同步到 root/empty.c)
+    - oled_show_motor() → oled_show_encoder()（新）
+    - main() 改为编码器调试循环
+
+keil/user_motor/motor.c
+    - 新增 Encoder_GetLeftPulse() / Encoder_GetRightPulse()
+    - ISR 改用 clearInterruptStatus（无条件清标志，不用 IIDX 判断）
+    - 最终：CC0_DN_EVENT（还原自曾错改的 CC0_UP_EVENT）
+
+keil/user_motor/motor.h
+    - 新增三个函数声明：Motor_GetTickMs / Encoder_GetLeft/RightPulse
+
+keil/ti_msp_dl_config.c (→ 同步到 root/)
+    - SYSCFG_DL_ENCODER_LEFT_init: enableInterrupt 最终为 CC0_DN_EVENT
+    - SYSCFG_DL_ENCODER_RIGHT_init: enableInterrupt 最终为 CC1_DN_EVENT
+```
+
+---
+
+## 2026-05-20 Session 总结（第三次）：右轮修复 + 竞赛架构设计
+
+### 完成内容
+
+1. **右轮 PA24 接线修复**：根因是 PA24（TIMA1 CC1，PWM_RIGHT）位于 LP-MSPM0G3507 的 J4 接口，用户漏接了这根线。接线后 `Motor_SetDifferential(500, 500)` 实测双轮均正常旋转。
+   - 诊断思路：对称双通道一好一坏 → 软件逻辑对称性已保证 → 原因只能是硬件/接线
+
+2. **竞赛目标确认**：2024 全国大学生电子设计竞赛 H 题《自动行驶小车》四个任务全部。
+
+3. **完整软件架构定稿**：
+   - 模块：`user_imu` / `user_buzzer` / `user_motor`（含编码器）/ `user_grayscale` / `user_oled` / `led.h`
+   - 状态机：`INIT → IDLE → RUN_STRAIGHT / RUN_ARC → WAYPOINT → DONE`
+   - 路线表：`RouteSegment[]` 段序列执行器
+
+4. **IMU 漂移解决方案设计**：ATK-IMU901 六轴（无磁力计）偏航角会漂移。解决方案：弧线段有黑线，灰度传感器巡线物理纠正航向；每次从弧线段进入直线段时 `IMU_ResetYaw()`，直线段只积累 ~3s，漂移可忽略。
+
+5. **创建 `plan.md`**：`C:\ti\empty\plan.md` 记录赛题全貌、引脚分配、模块结构、状态机、路线表、进度、禁忌事项。
+
+### 新增经验
+
+```
+PA24 在 J4 接口（不在常见 J1/J2 区域），双路电机接线时容易漏接右轮 PWM
+ATK-IMU901 是 UART 串口模块（输出欧拉角），不是裸 IMU 芯片，不需要手写融合算法
+六轴 IMU 漂移靠赛道弧线段"物理复位" + IMU_ResetYaw() 解决，不需要复杂滤波
+状态机 + RouteSegment 段序列表 比 按任务硬写 if/else 更具扩展性
+```
+
+### 下一步（按优先级）
+
+1. 查 MSPM0G3507 设备头文件，确认 PB16 对应哪个 TIMG 实例（右编码器）
+2. 更新 `ti_msp_dl_config.h/c` — 新增 UART1(PB6/PB7) + 右编码器 TIMG(PB16) + 蜂鸣器(PB17)
+3. 实现 `user_imu/imu.c/h` — UART1 中断 + ATK-IMU901 帧解析
+4. 实现 `user_buzzer/buzzer.c/h` — PB17 低电平触发
+5. 右编码器并入 `motor.c`
+6. 确认灰度传感器数量（候选引脚：PB2/PB3/PA27/PB20/PB24）
+7. 重写 `empty.c` 为完整状态机
 
 ---
 

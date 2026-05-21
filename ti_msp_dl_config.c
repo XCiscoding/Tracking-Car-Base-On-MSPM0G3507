@@ -53,6 +53,9 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_I2C_OLED_init();
     SYSCFG_DL_PWM_LEFT_init();
     SYSCFG_DL_PWM_RIGHT_init();
+    SYSCFG_DL_UART_IMU_init();
+    SYSCFG_DL_ENCODER_LEFT_init();
+    SYSCFG_DL_ENCODER_RIGHT_init();
 }
 
 SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
@@ -63,6 +66,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerA_reset(PWM_LEFT_INST);
     DL_TimerA_reset(PWM_RIGHT_INST);
     DL_TimerG_reset(QEI_LEFT_INST);
+    DL_TimerG_reset(QEI_RIGHT_INST);
+    DL_UART_Main_reset(UART_IMU_INST);
 
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
@@ -70,6 +75,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerA_enablePower(PWM_LEFT_INST);
     DL_TimerA_enablePower(PWM_RIGHT_INST);
     DL_TimerG_enablePower(QEI_LEFT_INST);
+    DL_TimerG_enablePower(QEI_RIGHT_INST);
+    DL_UART_Main_enablePower(UART_IMU_INST);
     delay_cycles(POWER_STARTUP_DELAY);
 }
 
@@ -114,6 +121,72 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
         MOTOR_BIN1_PIN_2_PIN | MOTOR_BIN2_PIN_3_PIN);
     DL_GPIO_enableOutput(MOTOR_BIN1_PORT,
         MOTOR_BIN1_PIN_2_PIN | MOTOR_BIN2_PIN_3_PIN);
+
+    /* UART1: PB6=TX(PINCM23), PB7=RX(PINCM24) */
+    DL_GPIO_initPeripheralOutputFunction(
+        GPIO_UART_IMU_TX_IOMUX, GPIO_UART_IMU_TX_FUNC);
+    DL_GPIO_initPeripheralInputFunction(
+        GPIO_UART_IMU_RX_IOMUX, GPIO_UART_IMU_RX_FUNC);
+
+    /* 左编码器: PA12(PINCM34) -> TIMG0 CCP0 输入 */
+    DL_GPIO_initPeripheralInputFunction(
+        GPIO_ENC_LEFT_IOMUX, GPIO_ENC_LEFT_FUNC);
+
+    /* 右编码器: PB16(PINCM33) -> TIMG8 CCP1 输入 */
+    DL_GPIO_initPeripheralInputFunction(
+        GPIO_ENC_RIGHT_IOMUX, GPIO_ENC_RIGHT_FUNC);
+
+    /* 蜂鸣器: PB17(PINCM43), 输出, 初始化为 HIGH（有源蜂鸣器不响） */
+    DL_GPIO_initDigitalOutput(GPIO_BUZZER_IOMUX);
+    DL_GPIO_setPins(GPIO_BUZZER_PORT, GPIO_BUZZER_PIN);
+    DL_GPIO_enableOutput(GPIO_BUZZER_PORT, GPIO_BUZZER_PIN);
+
+}
+
+
+/* ======== PWM RIGHT: TIMA1, PA24, CC1, period=1000 ======== */
+/* 32 MHz BUSCLK, prescale=0 -> PWM freq = 32MHz/1000 = 32 kHz */
+static const DL_TimerA_ClockConfig gPWM_RIGHT_ClockConfig = {
+    .clockSel    = DL_TIMER_CLOCK_BUSCLK,
+    .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
+    .prescale    = 0U,
+};
+
+static const DL_TimerA_PWMConfig gPWM_RIGHT_PWMConfig = {
+    .period          = 1000U,
+    .pwmMode         = DL_TIMER_PWM_MODE_EDGE_ALIGN,
+    .isTimerWithFourCC = false,
+    .startTimer      = DL_TIMER_START,
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_PWM_RIGHT_init(void)
+{
+    DL_TimerA_setClockConfig(PWM_RIGHT_INST,
+        (DL_TimerA_ClockConfig *) &gPWM_RIGHT_ClockConfig);
+    DL_TimerA_initPWMMode(PWM_RIGHT_INST,
+        (DL_TimerA_PWMConfig *) &gPWM_RIGHT_PWMConfig);
+    /* 初始占空比为 0 (停止) */
+    DL_TimerA_setCaptureCompareValue(PWM_RIGHT_INST, 0, DL_TIMER_CC_1_INDEX);
+    /* 使能 CC1 输出，输出源设为定时器功能值（PWM 波形） */
+    DL_TimerA_setCaptureCompareOutCtl(PWM_RIGHT_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
+        DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
+        DL_TIMER_CC_1_INDEX);
+    DL_TimerA_setCCPDirection(PWM_RIGHT_INST, DL_TIMER_CC1_OUTPUT);
+    DL_TimerA_enableClock(PWM_RIGHT_INST);
+}
+
+SYSCONFIG_WEAK void SYSCFG_DL_SYSCTL_init(void)
+{
+
+	//Low Power Mode is configured to be SLEEP0
+    DL_SYSCTL_setBORThreshold(DL_SYSCTL_BOR_THRESHOLD_LEVEL_0);
+
+    DL_SYSCTL_setSYSOSCFreq(DL_SYSCTL_SYSOSC_FREQ_BASE);
+    /* Set default configuration */
+    DL_SYSCTL_disableHFXT();
+    DL_SYSCTL_disableSYSPLL();
+    DL_SYSCTL_setULPCLKDivider(DL_SYSCTL_ULPCLK_DIV_1);
+    DL_SYSCTL_setMCLKDivider(DL_SYSCTL_MCLK_DIVIDER_DISABLE);
 
 }
 
@@ -172,50 +245,97 @@ SYSCONFIG_WEAK void SYSCFG_DL_PWM_LEFT_init(void)
     DL_TimerA_enableClock(PWM_LEFT_INST);
 }
 
-/* ======== PWM RIGHT: TIMA1, PA24, CC1, period=1000 ======== */
-/* 32 MHz BUSCLK, prescale=0 -> PWM freq = 32MHz/1000 = 32 kHz */
-static const DL_TimerA_ClockConfig gPWM_RIGHT_ClockConfig = {
+/* ======== UART1 (ATK-IMU901): 115200, 8N1, PB6=TX, PB7=RX ======== */
+static const DL_UART_Main_ClockConfig gUART_IMU_ClockConfig = {
+    .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
+    .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1,
+};
+
+static const DL_UART_Main_Config gUART_IMU_Config = {
+    .mode        = DL_UART_MAIN_MODE_NORMAL,
+    .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
+    .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
+    .parity      = DL_UART_MAIN_PARITY_NONE,
+    .wordLength  = DL_UART_MAIN_WORD_LENGTH_8_BITS,
+    .stopBits    = DL_UART_MAIN_STOP_BITS_ONE,
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_UART_IMU_init(void)
+{
+    DL_UART_Main_setClockConfig(UART_IMU_INST,
+        (DL_UART_Main_ClockConfig *) &gUART_IMU_ClockConfig);
+    DL_UART_Main_init(UART_IMU_INST,
+        (DL_UART_Main_Config *) &gUART_IMU_Config);
+    /* 32 MHz / 115200 -> 自动计算 IBRD/FBRD */
+    DL_UART_Main_configBaudRate(UART_IMU_INST, 32000000, UART_IMU_BAUD);
+    DL_UART_Main_setRXFIFOThreshold(UART_IMU_INST,
+        DL_UART_MAIN_RX_FIFO_LEVEL_ONE_ENTRY);
+    /* 使能 RX 中断，IMU 数据帧在 UART1_IRQHandler 中解析 */
+    DL_UART_Main_enableInterrupt(UART_IMU_INST,
+        DL_UART_MAIN_INTERRUPT_RX);
+    NVIC_SetPriority(UART_IMU_NVIC_IRQn, 2);
+    NVIC_EnableIRQ(UART_IMU_NVIC_IRQn);
+    DL_UART_Main_enable(UART_IMU_INST);
+}
+
+/* ======== TIMG8 右编码器: PB16(PINCM33) CCP1 上升沿捕获中断 ======== */
+/* 每个编码器 A 相上升沿触发 CC1 捕获中断，ISR 在 motor.c 中实现        */
+static const DL_TimerG_ClockConfig gENC_RIGHT_ClockConfig = {
     .clockSel    = DL_TIMER_CLOCK_BUSCLK,
     .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
     .prescale    = 0U,
 };
 
-static const DL_TimerA_PWMConfig gPWM_RIGHT_PWMConfig = {
-    .period          = 1000U,
-    .pwmMode         = DL_TIMER_PWM_MODE_EDGE_ALIGN,
-    .isTimerWithFourCC = false,
-    .startTimer      = DL_TIMER_START,
+static const DL_TimerG_CaptureConfig gENC_RIGHT_CaptureConfig = {
+    .captureMode  = DL_TIMER_CAPTURE_MODE_EDGE_TIME,
+    .period       = 0xFFFFU,   /* 自由运行，不关心溢出 */
+    .startTimer   = DL_TIMER_START,
+    .edgeCaptMode = DL_TIMER_CAPTURE_EDGE_DETECTION_MODE_RISING,
+    .inputChan    = DL_TIMER_INPUT_CHAN_1,   /* CCP1 对应 PB16 */
+    .inputInvMode = DL_TIMER_CC_INPUT_INV_NOINVERT,
 };
 
-SYSCONFIG_WEAK void SYSCFG_DL_PWM_RIGHT_init(void)
+/* ======== TIMG0 左编码器: PA12(PINCM34) CCP0 上升沿捕获中断 ======== */
+static const DL_TimerG_ClockConfig gENC_LEFT_ClockConfig = {
+    .clockSel    = DL_TIMER_CLOCK_BUSCLK,
+    .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
+    .prescale    = 0U,
+};
+
+static const DL_TimerG_CaptureConfig gENC_LEFT_CaptureConfig = {
+    .captureMode  = DL_TIMER_CAPTURE_MODE_EDGE_TIME,
+    .period       = 0xFFFFU,
+    .startTimer   = DL_TIMER_START,
+    .edgeCaptMode = DL_TIMER_CAPTURE_EDGE_DETECTION_MODE_RISING,
+    .inputChan    = DL_TIMER_INPUT_CHAN_0,   /* CCP0 对应 PA12 */
+    .inputInvMode = DL_TIMER_CC_INPUT_INV_NOINVERT,
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_ENCODER_LEFT_init(void)
 {
-    DL_TimerA_setClockConfig(PWM_RIGHT_INST,
-        (DL_TimerA_ClockConfig *) &gPWM_RIGHT_ClockConfig);
-    DL_TimerA_initPWMMode(PWM_RIGHT_INST,
-        (DL_TimerA_PWMConfig *) &gPWM_RIGHT_PWMConfig);
-    /* 初始占空比为 0 (停止) */
-    DL_TimerA_setCaptureCompareValue(PWM_RIGHT_INST, 0, DL_TIMER_CC_1_INDEX);
-    /* 使能 CC1 输出，输出源设为定时器功能值（PWM 波形） */
-    DL_TimerA_setCaptureCompareOutCtl(PWM_RIGHT_INST, DL_TIMER_CC_OCTL_INIT_VAL_LOW,
-        DL_TIMER_CC_OCTL_INV_OUT_DISABLED, DL_TIMER_CC_OCTL_SRC_FUNCVAL,
-        DL_TIMER_CC_1_INDEX);
-    DL_TimerA_setCCPDirection(PWM_RIGHT_INST, DL_TIMER_CC1_OUTPUT);
-    DL_TimerA_enableClock(PWM_RIGHT_INST);
+    DL_TimerG_setClockConfig(QEI_LEFT_INST,
+        (DL_TimerG_ClockConfig *) &gENC_LEFT_ClockConfig);
+    DL_TimerG_initCaptureMode(QEI_LEFT_INST,
+        (DL_TimerG_CaptureConfig *) &gENC_LEFT_CaptureConfig);
+    /* CC0 捕获事件中断：PA12 上升沿 → DN_EVENT（EDGE_TIME 为下计数器，捕获时发 DN 事件） */
+    DL_TimerG_enableInterrupt(QEI_LEFT_INST,
+        DL_TIMER_INTERRUPT_CC0_DN_EVENT);
+    NVIC_SetPriority(QEI_LEFT_NVIC_IRQn, 1);
+    NVIC_EnableIRQ(QEI_LEFT_NVIC_IRQn);
+    DL_TimerG_enableClock(QEI_LEFT_INST);
 }
 
-SYSCONFIG_WEAK void SYSCFG_DL_SYSCTL_init(void)
+SYSCONFIG_WEAK void SYSCFG_DL_ENCODER_RIGHT_init(void)
 {
-
-	//Low Power Mode is configured to be SLEEP0
-    DL_SYSCTL_setBORThreshold(DL_SYSCTL_BOR_THRESHOLD_LEVEL_0);
-
-    DL_SYSCTL_setSYSOSCFreq(DL_SYSCTL_SYSOSC_FREQ_BASE);
-    /* Set default configuration */
-    DL_SYSCTL_disableHFXT();
-    DL_SYSCTL_disableSYSPLL();
-    DL_SYSCTL_setULPCLKDivider(DL_SYSCTL_ULPCLK_DIV_1);
-    DL_SYSCTL_setMCLKDivider(DL_SYSCTL_MCLK_DIVIDER_DISABLE);
-
+    DL_TimerG_setClockConfig(QEI_RIGHT_INST,
+        (DL_TimerG_ClockConfig *) &gENC_RIGHT_ClockConfig);
+    DL_TimerG_initCaptureMode(QEI_RIGHT_INST,
+        (DL_TimerG_CaptureConfig *) &gENC_RIGHT_CaptureConfig);
+    /* CC1 捕获事件中断：PB16 上升沿 → DN_EVENT（EDGE_TIME 为下计数器，捕获时发 DN 事件） */
+    DL_TimerG_enableInterrupt(QEI_RIGHT_INST,
+        DL_TIMER_INTERRUPT_CC1_DN_EVENT);
+    NVIC_SetPriority(QEI_RIGHT_NVIC_IRQn, 1);
+    NVIC_EnableIRQ(QEI_RIGHT_NVIC_IRQn);
+    DL_TimerG_enableClock(QEI_RIGHT_INST);
 }
-
 
