@@ -1,6 +1,6 @@
 Dependencies for Project 'empty_LP_MSPM0G3507_nortos_keil', Target 'empty_LP_MSPM0G3507_nortos_keil': (DO NOT MODIFY !)
 CompilerVersion: 6210000::V6.21::ARMCLANG
-F (../empty.c)(0x6A0E7F32)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/empty.o -MD)
+F (../empty.c)(0x6A0F0DCA)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/empty.o -MD)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\msp\msp.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\DeviceFamily.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\msp\m0p\mspm0g350x.h)(0x66631CE6)
@@ -343,7 +343,7 @@ I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_systick.h)(0x66631CE6)
 I (user_oled\i2c_hal.h1ser_oled\font_5x7.h)(0x00000000)
 I (D:\Keil5\ARM\ARMCLANG\include\string.h)(0x6569B012)
 F (.\user_oled\oled.h)(0x6A0DAA3F)()
-F (.\user_motor\motor.c)(0x6A0EAF9D)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/motor.o -MD)
+F (.\user_motor\motor.c)(0x6A0F0693)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/motor.o -MD)
 I (D:\Keil5\ARM\ARMCLANG\include\stdint.h)(0x6569B012)
 I (D:\Keil5\ARM\ARMCLANG\include\stdbool.h)(0x6569B012)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\msp\msp.h)(0x66631CE6)
@@ -426,8 +426,8 @@ I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\dl_vref.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\dl_wwdt.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_interrupt.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_systick.h)(0x66631CE6)
-F (.\user_motor\motor.h)(0x6A0E7EFD)()
-F (.\user_imu\imu.c)(0x6A0DC1A4)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/imu.o -MD)
+F (.\user_motor\motor.h)(0x6A0EED75)()
+F (.\user_imu\imu.c)(0x6A0EED75)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/imu.o -MD)
 I (D:\Keil5\ARM\ARMCLANG\include\stdint.h)(0x6569B012)
 I (D:\Keil5\ARM\ARMCLANG\include\stdbool.hii_msp_dl_config.h)(0x00000000)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\msp\msp.h)(0x66631CE6)
@@ -510,8 +510,8 @@ I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\dl_vref.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\dl_wwdt.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_interrupt.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_systick.h)(0x66631CE6)
-F (.\user_imu\imu.h)(0x6A0DC1A4)()
-F (.\user_buzzer\buzzer.c)(0x6A0DC16E)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/buzzer.o -MD)
+F (.\user_imu\imu.h)(0x6A0EED75)()
+F (.\user_buzzer\buzzer.c)(0x6A0EED75)(-xc -std=c99 --target=arm-arm-none-eabi -mcpu=cortex-m0plus -c-fno-rtti -funsigned-char -fshort-enums -fshort-wchar-gdwarf-4 -O2 -ffunction-sections -Wno-packed -Wno-missing-variable-declarations -Wno-missing-prototypes -Wno-missing-noreturn -Wno-sign-conversion -Wno-nonportable-include-path -Wno-reserved-id-macro -Wno-unused-macros -Wno-documentation-unknown-command -Wno-documentation -Wno-license-management -Wno-parentheses-equality -Wno-reserved-identifier -Wno-covered-switch-default -Wno-unreachable-code-break -I . -I C:/ti/mspm0_sdk_2_01_00_03/source/third_party/CMSIS/Core/Include -I C:/ti/mspm0_sdk_2_01_00_03/source -I ./user_oled -I ./user_motor -I ./user_imu -I ./user_buzzer-D__UVISION_VERSION="539" -D__MSPM0G3507__ -D__MSPM0G3507__-o ./objects/buzzer.o -MD)
 I (D:\Keil5\ARM\ARMCLANG\include\stdint.h.i_msp_dl_config.h)(0x00000000)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\msp\msp.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\DeviceFamily.h)(0x66631CE6)
@@ -594,5 +594,5 @@ I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\dl_vref.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\dl_wwdt.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_interrupt.h)(0x66631CE6)
 I (C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_systick.h)(0x66631CE6)
-I (user_motor\motor.h)(0x6A0E7EFD)
-F (.\user_buzzer\buzzer.h)(0x6A0DC16E)()
+I (user_motor\motor.h)(0x6A0EED75)
+F (.\user_buzzer\buzzer.h)(0x6A0EED75)()

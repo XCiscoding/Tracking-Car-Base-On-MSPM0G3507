@@ -75,15 +75,22 @@ int main(void)
 
     DL_GPIO_setPins(GPIO_LED_PORT, GPIO_LED_PA7_PIN);
 
-    Encoder_Reset();    /* 从 0 开始 */
+    Encoder_Reset();
 
-    /* ── 纯手拨测试：不启动电机，实时刷新 OLED ──
-     * L: 左轮脉冲数   R: 右轮脉冲数
-     * 手拨某个轮，对应行数值增加 → 该路 ISR 正常
-     * 两行都不变 → 检查编码器接线（PA12 / PB16）
-     */
+    OLED_ClearLine(0);
+    OLED_ShowString(0, 0, "Go 50mm...", 1);
+    OLED_Refresh();
+
+    delay_ms(1000);     /* 等 1s 再启动，方便放好小车 */
+
+    Motor_GoDistance(1000, 300);   /* 阻塞：走 150mm，占空比 300/1000=30% */
+
+    /* 停车后显示实际走了多少脉冲 */
+    OLED_ClearLine(0);
+    OLED_ShowString(0, 0, "Done!", 1);
+    oled_show_encoder();
+
     while (1) {
-        oled_show_encoder();
-        delay_ms(200);
+        delay_ms(500);
     }
 }

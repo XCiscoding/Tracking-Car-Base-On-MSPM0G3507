@@ -3,8 +3,8 @@
 #include <ti/driverlib/dl_timerg.h>
 
 // ========== 用户标定参数 ==========
-#define WHEEL_CIRCUM_MM        210.0f   // 轮子周长 (mm)
-#define ENCODER_PPR            400      // 编码器每转脉冲数
+#define WHEEL_CIRCUM_MM        188.5f   // 轮子周长 (mm)（实测轮径60mm，π×60）
+#define ENCODER_PPR            270      // 编码器每转脉冲数（实测：两轮均约270）
 #define DIST_PER_PULSE         (WHEEL_CIRCUM_MM / ENCODER_PPR)  // 每个脉冲对应的毫米数
 
 // ========== 电机参数 ==========
@@ -103,12 +103,16 @@ static void Motor_InitTick(void) {
  */
 static volatile uint32_t g_pulse_left  = 0;
 static volatile uint32_t g_pulse_right = 0;
+static volatile uint32_t g_enc_ms_left  = 0;
+static volatile uint32_t g_enc_ms_right = 0;
 
 void Encoder_Reset(void)
 {
     g_pulse_left  = 0;
     g_pulse_right = 0;
     last_pulse    = 0;
+    g_enc_ms_left  = 0;
+    g_enc_ms_right = 0;
 }
 
 int32_t Encoder_GetPulse(void)
@@ -238,21 +242,45 @@ uint16_t Motor_GetRightDuty(void) { return s_right_duty; }
 /* ======== 编码器 ISR ========
  * TIMG0 CCP0 (PA12) —— 左转轮 A 相上升沿
  * TIMG8 CCP1 (PB16) —— 右转轮 A 相上升沿
- * 只前进不后退，无需方向判断，直接累加
+ *
+ * 防抖策略：SysTick ms 时基，最小间隔 ENC_DEBOUNCE_MS。
+ *
+ * 为什么需要 4ms：
+ *   速度 300 PWM ≈ 50 RPM（轮）→ 真实脉冲间隔 ≈ 4.4ms
+ *   电机有刷换向频率 = 50×减速比×换向片 ≈ 300 Hz → 周期 3.3ms
+ *   0.5ms 挡不住 3.3ms 换向噪声；4ms > 3.3ms 能挡住，< 4.4ms 不漏真脉冲。
+ *
+ * 注意：速度 > 100 RPM（轮）时真实间隔 < 2.2ms，需重新校准有效 PPR。
+ * 根治方案：编码器信号线对 GND 并联 100nF 陶瓷电容。
  */
+#define ENC_DEBOUNCE_MS   4U
+
 void TIMG0_IRQHandler(void)
 {
-    /* 清 CC0_DN_EVENT 标志（EDGE_TIME 为下计数器，上升沿捕获 → DN 事件） */
-    DL_TimerG_clearInterruptStatus(QEI_LEFT_INST,
+    uint32_t status = DL_TimerG_getEnabledInterruptStatus(QEI_LEFT_INST,
         DL_TIMER_INTERRUPT_CC0_DN_EVENT);
-    g_pulse_left++;
+    DL_TimerG_clearInterruptStatus(QEI_LEFT_INST, status);
+    if (status & DL_TIMER_INTERRUPT_CC0_DN_EVENT) {
+        uint32_t now = g_sysTickCount;
+        if ((now - g_enc_ms_left) >= ENC_DEBOUNCE_MS) {
+            g_pulse_left++;
+            g_enc_ms_left = now;
+        }
+    }
 }
 
 void TIMG8_IRQHandler(void)
 {
-    DL_TimerG_clearInterruptStatus(QEI_RIGHT_INST,
+    uint32_t status = DL_TimerG_getEnabledInterruptStatus(QEI_RIGHT_INST,
         DL_TIMER_INTERRUPT_CC1_DN_EVENT);
-    g_pulse_right++;
+    DL_TimerG_clearInterruptStatus(QEI_RIGHT_INST, status);
+    if (status & DL_TIMER_INTERRUPT_CC1_DN_EVENT) {
+        uint32_t now = g_sysTickCount;
+        if ((now - g_enc_ms_right) >= ENC_DEBOUNCE_MS) {
+            g_pulse_right++;
+            g_enc_ms_right = now;
+        }
+    }
 }
 
 /* 调试用：左右轮独立脉冲计数 */

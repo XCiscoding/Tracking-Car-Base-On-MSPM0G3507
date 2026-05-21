@@ -164,6 +164,20 @@ while (dist < target) {
 Motor_Stop()
 ```
 
+### 直线段停车策略（已决策 2026-05-21）
+
+**分阶段实现**：
+
+- **阶段一（当前）：方案 A — 纯编码器里程停车**
+  - 走完 1000mm 即停，简单可验证
+  - 不依赖灰度传感器，现在就能跑
+
+- **阶段二（灰度完成后）：方案 C — 编码器 + 灰度双重触发**
+  - 满足任一条件停车：
+    1. 编码器 ≥ 900mm **且** 灰度检测到黑线 → 精确停在 B/D 点
+    2. 编码器 ≥ 1100mm 超时保底 → 防灰度漏检
+  - 用物理地标（黑线）修正里程误差，停车位置更准
+
 ### 弧线段控制逻辑
 
 ```
@@ -195,31 +209,33 @@ Line_Follow()           ← 每次主循环调用
 
 ### 下一步（按顺序）
 
-1. **验证右编码器**：转动右轮，观察 OLED `R:` 行是否累积。如无反应，检查 PB16 接线的 VCC/GND 是否也反接。
+1. ✅ **验证左右编码器**：实测 PPR≈270，WHEEL_CIRCUM=188.5mm，已写入 motor.c
 
-2. **校准 `ENCODER_PPR`**：当前值 400（估算）。实测方法：手动转一整圈，读 `L:` 脉冲数写入 motor.c `ENCODER_PPR`。
-
-3. **`user_imu/imu.c/h`**
-   - UART1 初始化（PB6=RX, PB7=TX, 115200）
-   - UART1 RX 中断接收 ATK-IMU901 数据帧
-   - 解析偏航角（帧格式：待查 ATK-IMU901 文档）
-   - 导出 `IMU_Init() / IMU_GetYaw() / IMU_ResetYaw()`
+2. **调通编码器距离控制（方案 A）**
+   - 修复 ISR 假脉冲问题（已加状态检查，待验证）
+   - `Motor_GoDistance(50, 300)` 实测走 50mm 停车
+   - 若仍有 EMI 假脉冲，在 PA12/PB16 信号线对 GND 并联 100nF 滤波电容
 
 3. **`user_buzzer/buzzer.c/h`**
    - PB17 GPIO 初始化（输出，默认高电平=不响）
-   - `Buzzer_Beep(n)`：响 n 次，每次 100ms
+   - `Buzzer_Init() / Buzzer_Beep(n)`：响 n 次，每次 100ms
 
-4. **编码器并入 `motor.c`**
-   - PA12（TIMG0）左轮 A 相脉冲计数（已有框架，需接线）
-   - PB16（TIMG待定）右轮 A 相脉冲计数（新增）
-   - `Encoder_Reset() / Encoder_GetDistanceMM()` 统计双轮平均距离
+4. **`user_imu/imu.c/h`**
+   - UART1 初始化（PB6=RX, PB7=TX, 115200）
+   - UART1 RX 中断接收 ATK-IMU901 数据帧
+   - 解析偏航角
+   - 导出 `IMU_Init() / IMU_GetYaw() / IMU_ResetYaw()`
 
-5. **灰度传感器模块**（数量待确认）
+5. **`empty.c` Task 1 直线走通（方案 A）**
+   - 陀螺仪航向闭环 + 编码器 1000mm 停车
+   - 到 B 点：停车 → LED 亮 → 蜂鸣器响 1 次
+
+6. **灰度传感器模块**（数量待确认）
    - 引脚从 PB2/PB3/PA27/PB20/PB24 选
-   - `Grayscale_Init / GetPos / Line_Follow`
+   - `Grayscale_Init() / Grayscale_GetPos() / Line_Follow()`
+   - 叠加到直线段停车逻辑 → 升级为方案 C
 
-6. **`empty.c` 状态机重写**
-   - 任务选择（按键/串口）
+7. **`empty.c` 状态机重写（Task 2/3/4）**
    - 段序列执行器
    - 直线/弧线状态切换
 
