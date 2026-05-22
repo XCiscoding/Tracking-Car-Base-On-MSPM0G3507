@@ -1,7 +1,75 @@
-# Agent 交接滚动文件：编码器脉冲验证通过，待实现 IMU/蜂鸣器/灰度/状态机
+# Agent 交接滚动文件：IMU 字节已收到，前8字节全 0x00，待排查接线/协议
 
-最后更新：2026-05-21（第四次 Session）
-当前结论：左右编码器均已配置完毕，左轮实测脉冲计数成功。硬件已正常（VCC/GND 反接已修复）。下一步验证右编码器，然后实现 IMU、蜂鸣器模块，再重写 empty.c 为状态机。
+最后更新：2026-05-21（第五次 Session）
+当前结论：IMU UART1 硬件路径通（B 计数器 9600 baud 下增加），但所有字节为 0x00，帧解析 F=0。imu.c/imu.h 框架已完成。阻塞点：IMU TX 未确认接到 MCU PB7，或协议头不匹配（0xAA 0xFF vs 0x55 0x53）。
+
+---
+
+## 2026-05-21 Session 总结（第五次）：IMU 驱动框架完成，诊断阶段阻塞
+
+### 完成内容
+
+1. **UART1 硬件配置完成**（`keil/ti_msp_dl_config.c/h`）：
+   - PB6 = MCU UART1_TX → 接 IMU RX（PINCM23）
+   - PB7 = MCU UART1_RX → 接 IMU TX（PINCM24）
+   - 波特率从 115200 改为 **9600**（确认 B 计数器增加）
+   - RX 中断已使能，NVIC priority=2，FIFO ONE_ENTRY
+
+2. **imu.c/imu.h 完整实现**（`keil/user_imu/`）：
+   - UART1_IRQHandler 帧解析状态机
+   - 当前协议：ATK-IMU901 专有 `[0xAA][0xFF][CMD][LEN][DATA][CKSUM]`，欧拉角帧 CMD=0x44，LEN=6，单位 0.01°
+   - 诊断 API：`IMU_GetRawByteCount()` / `IMU_GetRawCapture(buf, n)`（前8字节快照）
+   - 完整 API：`IMU_Init/GetYaw/GetRoll/GetPitch/ResetYaw/IsDataReady`
+
+3. **empty.c 改为 IMU 诊断程序**（根目录 `empty.c`）：
+   - OLED 4 行布局：Yaw/Roll/Pitch 动态角度 + `B:XXXXX F:XXXX` + 前4字节 Hex
+   - main() 加 `delay_ms(500)` 等模块上电 + 发 `0xFF` 唤醒字节
+
+4. **硬件验证进展**：
+   - 9600 baud：B 增加 ✅（路径通，排除硬件断线）
+   - 前8字节全 0x00，F=0 ❌（协议不匹配 or 接线错误）
+
+### 当前阻塞：0x00 字节问题诊断清单
+
+按优先级排查：
+1. **万用表测 IMU TX 引脚对 GND 电压**（空闲应 ~3V；0V = 无电 or 接 GND）
+2. **确认 IMU TX 物理接到 MCU PB7**（UART1_RX），不是 PB6（TX 和 RX 要交叉）
+3. **若接线正确但仍 0x00** → 协议不匹配，改为 WIT Motion 协议：
+   ```
+   帧头: [0x55][0x53]，共11字节
+   [RollL][RollH][PitchL][PitchH][YawL][YawH][TL][TH][SUM]
+   SUM = (0x53+所有DATA) & 0xFF；单位 int16 × 0.1°
+   ```
+
+### 关键接线规则（新增教训）
+
+```
+IMU TX → MCU RX（PB7）
+IMU RX → MCU TX（PB6）
+TX 和 RX 必须交叉，绝不能同名相连
+空闲时 TX 线为高电平（~3V），0V = 断线 or 接 GND
+```
+
+### 改动文件清单
+
+```text
+c:\ti\empty\empty.c（根目录，Keil 以 ../empty.c 引用）
+    - 改为 IMU 诊断程序
+    - main() 加 delay_ms(500) + 发 0xFF 唤醒
+    - OLED 显示 Yaw/Roll + B/F/Hex
+
+keil/user_imu/imu.c   ← 新增（完整帧解析状态机）
+keil/user_imu/imu.h   ← 新增（完整 API 声明）
+keil/ti_msp_dl_config.h ← UART_IMU_BAUD 改为 9600
+```
+
+### 下一步（解除阻塞后按顺序执行）
+
+1. 确认 Yaw 静止稳定（≤±0.5°）+ 顺时针旋转方向正负
+2. 实现 `Motor_GoStraightDistance(mm, duty)` —— Yaw 闭环 P + 编码器停车
+3. 实现蜂鸣器 `Buzzer_Init()` / `Buzzer_Beep(n)`（PB17，低电平触发）
+4. Task1 直线走通（A→B 1000mm，到达鸣笛）
+5. 灰度传感器引脚确定 → 巡线驱动 → Task2 圆弧
 
 ---
 

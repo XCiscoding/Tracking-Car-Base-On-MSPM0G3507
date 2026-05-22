@@ -41,17 +41,20 @@ void OLED_ClearLine(uint8_t y) {
 }
 
 void OLED_Refresh(void) {
+    /* 每页以一次 I2C 大包发送：[0x40控制字节] + [128 数据字节]
+     * 共 8 页发 8+24 = 32 次 I2C 事务，原来的 1048 次减少 32倍。 */
+    static uint8_t page_buf[1u + WIDTH];   /* 1 控制字节 + 128 数据字节 */
+    page_buf[0] = 0x40u;                   /* SSD1306 数据流控制字节 */
+
     for (uint8_t page = 0; page < PAGE_NUM; page++) {
-        // 设置页地址 (0xB0 + page)
         oled_write_cmd(0xB0 + page);
-        // 设置列低4位地址 (低列地址)
         oled_write_cmd(0x00);
-        // 设置列高4位地址 (高列地址)
         oled_write_cmd(0x10);
-        // 发送该页所有列的数据
         for (uint8_t x = 0; x < WIDTH; x++) {
-            oled_write_data(oled_buffer[page * WIDTH + x]);
+            page_buf[1u + x] = oled_buffer[page * WIDTH + x];
         }
+        DL_I2C_Master_transmit(I2C_OLED_INST, OLED_ADDR,
+                                page_buf, (uint8_t)(1u + WIDTH), 100000u);
     }
 }
 

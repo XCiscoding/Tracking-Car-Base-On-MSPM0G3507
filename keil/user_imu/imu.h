@@ -21,11 +21,16 @@
  *   }
  */
 
-void  IMU_Init(void);          /* 复位内部状态；UART1 已在 SYSCFG 中启动 */
-float IMU_GetYaw(void);        /* 收益偵訪角 (度)，相对上次 ResetYaw 的增量 */
-float IMU_GetRoll(void);       /* 横滚角 (度) */
-float IMU_GetPitch(void);      /* 俧仰角 (度) */
-void  IMU_ResetYaw(void);      /* 清零偶转角基准 —— 进入直线段前调用 */
-bool  IMU_IsDataReady(void);   /* 是否有新帧数据（读后自动清零标志） */
+void     IMU_Init(void);
+float    IMU_GetYaw(void);
+float    IMU_GetRoll(void);
+float    IMU_GetPitch(void);
+void     IMU_ResetYaw(void);
+bool     IMU_IsDataReady(void);
+uint32_t IMU_GetRawByteCount(void);              /* 诊断：ISR 收到的原始字节总数 */
+uint8_t  IMU_GetRawCapture(uint8_t *buf, uint8_t n); /* 诊断：最近 n 个字节（滚动） */
+uint32_t IMU_GetCksumOkCount(void);              /* 诊断：checksum 通过的帧计数（任意 CMD） */
+uint32_t IMU_Get55Count(void);                   /* 诊断：0x55 帧头字节出现次数 */
+uint8_t  IMU_GetLastCmd(void);                   /* 诊断：最后一个 CMD 字节（0x53=欧拉角帧） */
 
 #endif /* IMU_H */
