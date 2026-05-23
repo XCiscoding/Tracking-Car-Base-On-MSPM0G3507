@@ -7,10 +7,17 @@
       "Read(//c/ti/empty/电赛小车终极版（最终版\\)/code/**)",
       "WebSearch",
       "Bash(\"/d/Keil5/UV4/UV4.exe\" -b \"keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx\" -j0)",
-      "Bash(python -)"
+      "Bash(python -)",
+      "Bash(git log *)",
+      "Bash(diffstat)",
+      "Bash(git hash-object *)",
+      "Read(//c/Users/26404/.claude/**)",
+      "Read(//c/ti/empty/电赛小车终极版（最终版\\)/user/**)",
+      "Read(//c/ti/empty/电赛小车终极版（最终版\\)/ml_libs/**)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\26404\\.claude\\telos"
+      "C:\\Users\\26404\\.claude\\telos",
+      "C:\\Users\\26404\\.claude"
     ]
   }
 }

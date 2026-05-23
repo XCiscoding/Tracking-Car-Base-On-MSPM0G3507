@@ -81,4 +81,5 @@
   C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\dl_wwdt.h \
   C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_interrupt.h \
   C:\ti\mspm0_sdk_2_01_00_03\source\ti\driverlib\m0p\dl_systick.h \
-  user_oled\oled.h user_motor\motor.h user_imu\imu.h
+  user_oled\oled.h user_motor\motor.h user_imu\imu.h \
+  user_grayscale\grayscale.h ti_msp_dl_config.h

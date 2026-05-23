@@ -182,6 +182,39 @@ void SYSCFG_DL_PWM_RIGHT_init(void);
 #define GPIO_BUZZER_PIN                                      (DL_GPIO_PIN_17)
 #define GPIO_BUZZER_IOMUX                                       (IOMUX_PINCM43)
 
+/* ======== YAHBOOM 8-CH GRAYSCALE MODULE: use X1/X2/X4/X5/X7/X8, X3/X6 NC ======== */
+#define GRAYSCALE_PORT                                                 (GPIOB)
+
+#define GRAY_X1_PORT                                                   (GPIOB)
+#define GRAY_X1_PIN                                        (DL_GPIO_PIN_2)
+#define GRAY_X1_IOMUX                                      (IOMUX_PINCM15)
+#define GRAY_X1_IOMUX_FUNC                      IOMUX_PINCM15_PF_GPIOB_DIO02
+
+#define GRAY_X2_PORT                                                   (GPIOB)
+#define GRAY_X2_PIN                                        (DL_GPIO_PIN_3)
+#define GRAY_X2_IOMUX                                      (IOMUX_PINCM16)
+#define GRAY_X2_IOMUX_FUNC                      IOMUX_PINCM16_PF_GPIOB_DIO03
+
+#define GRAY_X4_PORT                                                   (GPIOA)
+#define GRAY_X4_PIN                                       (DL_GPIO_PIN_27)
+#define GRAY_X4_IOMUX                                      (IOMUX_PINCM60)
+#define GRAY_X4_IOMUX_FUNC                      IOMUX_PINCM60_PF_GPIOA_DIO27
+
+#define GRAY_X5_PORT                                                   (GPIOB)
+#define GRAY_X5_PIN                                       (DL_GPIO_PIN_20)
+#define GRAY_X5_IOMUX                                      (IOMUX_PINCM48)
+#define GRAY_X5_IOMUX_FUNC                      IOMUX_PINCM48_PF_GPIOB_DIO20
+
+#define GRAY_X7_PORT                                                   (GPIOB)
+#define GRAY_X7_PIN                                       (DL_GPIO_PIN_14)
+#define GRAY_X7_IOMUX                                      (IOMUX_PINCM31)
+#define GRAY_X7_IOMUX_FUNC                      IOMUX_PINCM31_PF_GPIOB_DIO14
+
+#define GRAY_X8_PORT                                                   (GPIOB)
+#define GRAY_X8_PIN                                       (DL_GPIO_PIN_15)
+#define GRAY_X8_IOMUX                                      (IOMUX_PINCM32)
+#define GRAY_X8_IOMUX_FUNC                      IOMUX_PINCM32_PF_GPIOB_DIO15
+
 void SYSCFG_DL_I2C_OLED_init(void);
 void SYSCFG_DL_UART_IMU_init(void);
 void SYSCFG_DL_ENCODER_LEFT_init(void);

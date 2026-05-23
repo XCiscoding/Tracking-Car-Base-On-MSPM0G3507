@@ -36,7 +36,6 @@ static volatile float s_pitch;
 static volatile float s_yaw_raw;
 static volatile int16_t s_cmd1_value[4];
 static volatile int16_t s_cmd2_value[4];
-static volatile int16_t s_cmd3_value[4];
 static volatile int32_t s_heading_integral;
 static volatile int32_t s_heading_bias;
 static volatile int32_t s_heading_bias_sum;
@@ -45,7 +44,6 @@ static volatile bool s_heading_calibrated;
 static volatile uint32_t s_heading_last_ms;
 static volatile uint32_t s_cmd1_count;
 static volatile uint32_t s_cmd2_count;
-static volatile uint32_t s_cmd3_count;
 static volatile float s_roll_offset;
 static volatile float s_pitch_offset;
 static volatile float s_yaw_offset;
@@ -77,7 +75,6 @@ void IMU_Init(void)
     s_yaw_raw        = 0.0f;
     s_cmd1_count     = 0;
     s_cmd2_count     = 0;
-    s_cmd3_count     = 0;
     s_heading_integral = 0;
     s_heading_bias   = 0;
     s_heading_bias_sum = 0;
@@ -87,7 +84,6 @@ void IMU_Init(void)
     for (uint8_t i = 0; i < 4u; i++) {
         s_cmd1_value[i] = 0;
         s_cmd2_value[i] = 0;
-        s_cmd3_value[i] = 0;
     }
     s_roll_offset    = 0.0f;
     s_pitch_offset   = 0.0f;
@@ -222,17 +218,6 @@ int16_t IMU_GetCmd55Value(uint8_t index)
 {
     if (index >= 4u) return 0;
     return s_cmd1_value[index];
-}
-
-int16_t IMU_GetCmd3Value(uint8_t index)
-{
-    if (index >= 4u) return 0;
-    return s_cmd3_value[index];
-}
-
-uint32_t IMU_GetCmd3Count(void)
-{
-    return s_cmd3_count;
 }
 
 uint32_t IMU_GetCmd55Count(void)
@@ -392,9 +377,6 @@ void UART1_IRQHandler(void)
                         parse_payload_values(s_cmd2_value);
                         update_heading_integral();
                         s_cmd2_count++;
-                    } else if (s_cmd == 0x03u) {
-                        parse_payload_values(s_cmd3_value);
-                        s_cmd3_count++;
                     } else if (s_cmd == IMU_CMD_EULER) {
                         parse_attitude_payload();
                     }

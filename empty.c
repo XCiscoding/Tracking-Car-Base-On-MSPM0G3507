@@ -34,18 +34,22 @@
 #include "oled.h"
 #include "motor.h"
 #include "imu.h"
+#include "grayscale.h"
 
-#define IMU_DIAG_REFRESH_MS     500u
+#define IMU_DIAG_REFRESH_MS     200u
 #define STRAIGHT_TARGET_MM      500.0f
 #define STRAIGHT_BASE_PWM       200
-#define STRAIGHT_LEFT_TRIM      (-50)
+#define STRAIGHT_LEFT_TRIM      0
 #define STRAIGHT_RIGHT_TRIM     0
-#define STRAIGHT_ENC_KP         2
-#define STRAIGHT_ENC_MAX_CORR   80
-#define STRAIGHT_D0_DIV         40
-#define STRAIGHT_D0_MAX_CORR    50
+#define STRAIGHT_ENC_KP         4
+#define STRAIGHT_ENC_MAX_CORR   120
+#define STRAIGHT_D0_DIV         20
+#define STRAIGHT_D0_MAX_CORR    80
+#define STRAIGHT_D0_VALID_LIMIT 3000
 #define STRAIGHT_LOOP_MS        20u
-#define STRAIGHT_LAUNCH_MS      250u
+#define STRAIGHT_SOFT_START_MS  150u
+#define STRAIGHT_SOFT_PWM       170
+#define STRAIGHT_MAX_RUN_MS     3000u
 
 /*
  * 保留 8 字节对齐保护：Keil 的 MSPM0 Flash Algorithm 对镜像尾部长度敏感，
@@ -182,6 +186,60 @@ static int16_t clamp_i16(int32_t value, int32_t min_value, int32_t max_value)
     return (int16_t)value;
 }
 
+static void oled_show_gray_bits(uint8_t x, uint8_t y, uint8_t raw)
+{
+    for (uint8_t i = 0u; i < 6u; i++) {
+        uint8_t mask = (uint8_t)(0x20u >> i);
+        OLED_ShowChar((uint8_t)(x + i * 6u), y, (raw & mask) ? '1' : '0', 1);
+    }
+}
+
+static uint8_t grayscale_count_black(uint8_t raw)
+{
+    uint8_t n = 0u;
+
+    for (uint8_t i = 0u; i < 6u; i++) {
+        if (raw & (uint8_t)(0x20u >> i)) n++;
+    }
+    return n;
+}
+
+/*
+ * 灰度静态诊断入口：只显示原始 6 路状态、黑线数量和偏差，不启动电机。
+ * 用于先验收亚博八路巡线模块的接线、电平方向、bit 顺序和左右误差方向。
+ */
+static void Run_Grayscale_Diag(void)
+{
+    uint32_t last_oled_ms = 0u;
+
+    Motor_Stop();
+    Grayscale_Init();
+
+    while (1) {
+        uint32_t now = Motor_GetTickMs();
+
+        if ((now - last_oled_ms) >= 100u) {
+            uint8_t raw = Grayscale_Read();
+            int16_t error = Grayscale_GetError();
+
+            last_oled_ms = now;
+            OLED_ClearLine(0);
+            OLED_ShowString(0, 0, "GRAY DIAG", 1);
+            OLED_ClearLine(8);
+            OLED_ShowString(0, 8, "G:", 1);
+            oled_show_gray_bits(18, 8, raw);
+            OLED_ClearLine(16);
+            oled_show_i16(16, "E:", error);
+            OLED_ClearLine(24);
+            OLED_ShowString(0, 24, "N:", 1);
+            OLED_ShowNum(18, 24, grayscale_count_black(raw), 1, 1);
+            OLED_ClearLine(32);
+            OLED_ShowString(0, 32, "X1 X2 X4 X5 X7 X8", 1);
+            OLED_Refresh();
+        }
+    }
+}
+
 /*
  * 用 D0 作为车头航向误差，叠加在原来的编码器左右轮同步修正上。
  * 输入为当前 D0 和左右编码器差；输出为左右轮 PWM，用于验证 D0 能否把 500mm 直线拉直。
@@ -193,12 +251,16 @@ static void Run_D0_Straight_Test(void)
     int16_t last_enc_corr = 0;
     int16_t last_d0_corr = 0;
     uint32_t launch_start_ms;
+    int16_t target_d0 = 0;
+    uint8_t control_mode = 0u;
 
     Encoder_Reset();
     IMU_ResetAngles();
+    target_d0 = IMU_GetHeadingGyroRaw();
     launch_start_ms = Motor_GetTickMs();
 
-    while (Encoder_GetDistanceMM() < STRAIGHT_TARGET_MM) {
+    while ((Encoder_GetDistanceMM() < STRAIGHT_TARGET_MM) &&
+           ((Motor_GetTickMs() - launch_start_ms) < STRAIGHT_MAX_RUN_MS)) {
         uint32_t now = Motor_GetTickMs();
         (void)IMU_IsDataReady();
 
@@ -207,25 +269,33 @@ static void Run_D0_Straight_Test(void)
             int32_t right_pulse = (int32_t)Encoder_GetRightPulse();
             int32_t enc_error = left_pulse - right_pulse;
             int32_t enc_corr = enc_error * STRAIGHT_ENC_KP;
-            int32_t d0_corr = (int32_t)IMU_GetHeadingGyroRaw() / STRAIGHT_D0_DIV;
+            int32_t heading_error = 0;
+            int32_t base_pwm = STRAIGHT_BASE_PWM;
             int32_t left_pwm;
             int32_t right_pwm;
-            bool launch_phase = ((now - launch_start_ms) < STRAIGHT_LAUNCH_MS) ||
-                                (left_pulse < 12 && right_pulse < 12);
+            bool soft_start_done = ((now - launch_start_ms) >= STRAIGHT_SOFT_START_MS);
 
             last_ctrl_ms = now;
-            if (launch_phase) {
-                last_enc_corr = 0;
-                last_d0_corr = 0;
-                left_pwm = STRAIGHT_BASE_PWM + STRAIGHT_LEFT_TRIM;
-                right_pwm = STRAIGHT_BASE_PWM + STRAIGHT_RIGHT_TRIM;
-            } else {
-                last_enc_corr = clamp_i16(enc_corr, -STRAIGHT_ENC_MAX_CORR, STRAIGHT_ENC_MAX_CORR);
-                last_d0_corr = clamp_i16(d0_corr, -STRAIGHT_D0_MAX_CORR, STRAIGHT_D0_MAX_CORR);
+            last_enc_corr = clamp_i16(enc_corr, -STRAIGHT_ENC_MAX_CORR, STRAIGHT_ENC_MAX_CORR);
 
-                left_pwm = STRAIGHT_BASE_PWM + STRAIGHT_LEFT_TRIM - last_enc_corr - last_d0_corr;
-                right_pwm = STRAIGHT_BASE_PWM + STRAIGHT_RIGHT_TRIM + last_enc_corr + last_d0_corr;
+            if (!soft_start_done) {
+                control_mode = 0u;
+                base_pwm = STRAIGHT_SOFT_PWM;
+                last_d0_corr = 0;
+            } else {
+                control_mode = 1u;
+                heading_error = (int32_t)IMU_GetHeadingGyroRaw() - (int32_t)target_d0;
+                if (heading_error > STRAIGHT_D0_VALID_LIMIT || heading_error < -STRAIGHT_D0_VALID_LIMIT) {
+                    last_d0_corr = 0;
+                } else {
+                    last_d0_corr = clamp_i16(-heading_error / STRAIGHT_D0_DIV,
+                                             -STRAIGHT_D0_MAX_CORR,
+                                             STRAIGHT_D0_MAX_CORR);
+                }
             }
+
+            left_pwm = base_pwm + STRAIGHT_LEFT_TRIM - last_enc_corr - last_d0_corr;
+            right_pwm = base_pwm + STRAIGHT_RIGHT_TRIM + last_enc_corr + last_d0_corr;
             Motor_SetDifferential(clamp_i16(left_pwm, 0, 1000), clamp_i16(right_pwm, 0, 1000));
         }
 
@@ -243,13 +313,15 @@ static void Run_D0_Straight_Test(void)
             OLED_ClearLine(24);
             oled_show_i16(24, "HC:", last_d0_corr);
             OLED_ClearLine(32);
-            OLED_ShowString(0, 32, "D:", 1);
-            OLED_ShowNum(18, 32, (uint32_t)Encoder_GetDistanceMM(), 4, 1);
+            OLED_ShowString(0, 32, "M:", 1);
+            OLED_ShowNum(18, 32, control_mode, 1, 1);
+            OLED_ShowString(36, 32, "D:", 1);
+            OLED_ShowNum(54, 32, (uint32_t)Encoder_GetDistanceMM(), 4, 1);
             OLED_ClearLine(40);
-            OLED_ShowString(0, 40, "L:", 1);
-            OLED_ShowNum(18, 40, (uint32_t)left_pulse, 4, 1);
-            OLED_ShowString(54, 40, "R:", 1);
-            OLED_ShowNum(72, 40, (uint32_t)right_pulse, 4, 1);
+            OLED_ShowString(0, 40, "LP:", 1);
+            OLED_ShowNum(24, 40, Motor_GetLeftDuty(), 3, 1);
+            OLED_ShowString(60, 40, "RP:", 1);
+            OLED_ShowNum(84, 40, Motor_GetRightDuty(), 3, 1);
             OLED_Refresh();
         }
     }
@@ -297,13 +369,13 @@ int main(void)
     IMU_Init();
     OLED_Init();
 
-    OLED_ShowString(6, 0, "D0 STRAIGHT", 1);
-    OLED_ShowString(6, 8, "500mm test", 1);
-    OLED_ShowString(6, 16, "Keep clear", 1);
+    OLED_ShowString(6, 0, "GRAY DIAG", 1);
+    OLED_ShowString(6, 8, "X1X2X4X5X7X8", 1);
+    OLED_ShowString(6, 16, "Motor stopped", 1);
     OLED_Refresh();
     delay_ms(800);
 
-    Run_D0_Straight_Test();
+    Run_Grayscale_Diag();
 
     while (1) {}
 }
