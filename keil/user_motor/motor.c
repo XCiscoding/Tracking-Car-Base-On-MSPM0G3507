@@ -3,8 +3,8 @@
 #include <ti/driverlib/dl_timerg.h>
 
 // ========== 用户标定参数 ==========
-#define WHEEL_CIRCUM_MM        188.5f   // 轮子周长 (mm)（实测轮径60mm，π×60）
-#define ENCODER_PPR            270      // 编码器每转脉冲数（实测：两轮均约270）
+#define WHEEL_CIRCUM_MM        150.8f   // 轮子周长 (mm)（实测轮径48mm，π×48≈150.8）
+#define ENCODER_PPR            98       // 编码器有效每转脉冲数（V1.3 实测 450mm/292.5pulse 反推）
 #define DIST_PER_PULSE         (WHEEL_CIRCUM_MM / ENCODER_PPR)  // 每个脉冲对应的毫米数
 
 // ========== 电机参数 ==========

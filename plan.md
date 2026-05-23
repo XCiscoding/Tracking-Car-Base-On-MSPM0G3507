@@ -1,6 +1,6 @@
 # 自动行驶小车 H 题 —— 项目实施计划
 
-最后更新：2026-05-20
+最后更新：2026-05-23
 
 ---
 
@@ -10,7 +10,7 @@
 
 场地：220cm×120cm，两个对称半圆弧（r=40cm，黑色线宽1.8cm），四顶点 A/B/C/D。
 
-```
+```text
    A ←100cm→ B
   ↗            ↘
 (左弧 r=40)  (右弧 r=40)
@@ -18,7 +18,7 @@
    D ←100cm→ C
 ```
 
-**直线段**（A-B 顶部，D-C 底部）：无黑线，靠陀螺仪+编码器控制。
+**直线段**（A-B 顶部，D-C 底部）：无黑线，靠陀螺仪+编码器控制。  
 **弧线段**（A-D 左弧，B-C 右弧）：有黑线，靠灰度传感器巡线。
 
 ### 任务与得分
@@ -39,7 +39,7 @@
 
 ### MCU & 开发板
 
-```
+```text
 MCU:      MSPM0G3507
 Board:    LP-MSPM0G3507（板载 XDS110，走 CMSIS-DAP）
 IDE:      Keil MDK 5.39 at D:\Keil5
@@ -61,22 +61,25 @@ DFP:      TexasInstruments.MSPM0G1X0X_G3X0X_DFP 1.3.1（已打 FLM 补丁）
 | 右轮 PWM | PA24 (PINCM54) | TIMA1 CC1 | 已完成 |
 | 右轮 BIN1 | PA16 (PINCM38) | GPIO | 已完成 |
 | 右轮 BIN2 | PA17 (PINCM39) | GPIO | 已完成 |
-| **IMU UART RX** | **PB6** | **UART1** | 待实现 |
-| **IMU UART TX** | **PB7** | **UART1** | 待实现 |
-| **左编码器 A相** | **PA12** | **TIMG0 CCP0** | ✅ 已验证（CC0_DN_EVENT，DOWN计数器） |
-| **右编码器 A相** | **PB16** | **TIMG8 CCP1** | ✅ 已配置，待实物验证 |
-| **蜂鸣器** | **PB17** | **GPIO** | 低电平触发有源，待实现 |
-| **灰度传感器** | **PB2/PB3/PA27/PB20/PB24** | ADC/GPIO | 数量待确认，待实现 |
+| IMU MCU TX→IMU RX | PB6 (PINCM23) | UART1 TX | 已配置 |
+| IMU MCU RX←IMU TX | PB7 (PINCM24) | UART1 RX | 已确认接收和解析通 |
+| 左编码器 A相 | PA12 | TIMG0 CCP0 | 已验证（CC0_DN_EVENT，DOWN计数器） |
+| 右编码器 A相 | PB16 | TIMG8 CCP1 | 已验证 |
+| 蜂鸣器 | PB17 | GPIO | 低电平触发有源，待实现 |
+| 灰度传感器 | PB2/PB3/PA27/PB20/PB24 | ADC/GPIO | 数量待确认，待实现 |
 
 > 空闲备用：PB24（灰度传感器备用）
 
 ### 关键外设规格
 
-- **ATK-IMU901（六轴版）**：UART 串口输出欧拉角，默认波特率 115200，100Hz 输出
-  - 六轴（加速度计+陀螺仪），无磁力计，偏航角靠积分，会漂移
-  - 漂移解决方案：每次从弧线段进入直线段时调 `IMU_ResetYaw()` 清零
-- **有源蜂鸣器（低电平触发）**：GPIO 拉低发声
-- **编码器**：只接 A 相（单路脉冲计数），小车只前进不后退，无需方向判断
+- **正点原子 ATK-IMU901（六轴串口版）**：当前按 UART1、115200、8N1 接入。
+  - 已确认 PB7 有持续原始字节进入。
+  - 已证伪 `AA FF` ATK 假设帧。
+  - 当前实测真实帧：`55 55 CMD LEN DATA SUM`。
+  - `OK` 持续增长，`CMD` 在 `0x01/0x02/0x03/0x06` 间切换。
+  - 传统 `CMD=0x06` 的 R/P/Y 水平转动不可信；当前使用 `D0 = CMD=0x02[0] - bias` 作为航向候选。
+- **有源蜂鸣器（低电平触发）**：GPIO 拉低发声。
+- **编码器**：只接 A 相（单路脉冲计数），小车只前进不后退，无需方向判断。
 
 ---
 
@@ -84,11 +87,11 @@ DFP:      TexasInstruments.MSPM0G1X0X_G3X0X_DFP 1.3.1（已打 FLM 补丁）
 
 ### 模块结构
 
-```
+```text
 keil/
 ├── user_imu/
-│   ├── imu.c      UART1 中断接收 + ATK-IMU901 帧解析 + 偏航角积分
-│   └── imu.h      IMU_Init() / IMU_GetYaw() / IMU_ResetYaw()
+│   ├── imu.c      UART1 中断接收 + 55 55 帧解析 + D0 航向候选
+│   └── imu.h      IMU_Init() / IMU_GetHeadingGyroRaw() / 诊断接口
 ├── user_buzzer/
 │   ├── buzzer.c   Buzzer_Init() / Buzzer_Beep(n) / Buzzer_BeepMs(ms)
 │   └── buzzer.h
@@ -106,144 +109,147 @@ keil/
 │   ├── font_5x7.c
 │   └── ...
 ├── led.h          LED_ON / LED_OFF 两个宏（无需 .c，直接操作 PA7）
-└── empty.c        主状态机（只含高层逻辑，无硬件细节）
+└── empty.c        当前为 D0 航向修正 500mm 直线测试入口
 ```
 
-### 状态机设计
+### 状态机设计（后续恢复）
 
 ```c
-// 系统顶层状态
 typedef enum {
-    STATE_INIT,         // 初始化、IMU校准、等待启动
-    STATE_IDLE,         // 等待按键选题（Task 1/2/3/4）
-    STATE_RUN_STRAIGHT, // 直线段：陀螺仪航向闭环 + 编码器里程停车
-    STATE_RUN_ARC,      // 弧线段：灰度传感器巡线
-    STATE_WAYPOINT,     // 到达 ABCD 点：停车→声光提示→进下一段
-    STATE_DONE,         // 全部完成，停车
+    STATE_INIT,
+    STATE_IDLE,
+    STATE_RUN_STRAIGHT,
+    STATE_RUN_ARC,
+    STATE_WAYPOINT,
+    STATE_DONE,
 } SysState;
 ```
 
-### 路线表设计（段序列执行器）
+### 直线段控制逻辑（当前正在调试）
 
-```c
-typedef enum { SEG_STRAIGHT, SEG_ARC } SegType;
-
-typedef struct {
-    SegType  type;
-    uint32_t dist_mm;  // 仅 STRAIGHT 用（弧线靠传感器判终点）
-    uint8_t  beep_n;   // 到达终点时声光提示次数
-} RouteSegment;
-
-// Task 1: A→B
-static const RouteSegment ROUTE_TASK1[] = {
-    { SEG_STRAIGHT, 1000, 1 },
-};
-
-// Task 2: A→B→(弧)→C→D→(弧)→A 顺时针
-static const RouteSegment ROUTE_TASK2[] = {
-    { SEG_STRAIGHT, 1000, 1 },  // A→B
-    { SEG_ARC,      0,    1 },  // B→C（右弧）
-    { SEG_STRAIGHT, 1000, 1 },  // C→D
-    { SEG_ARC,      0,    1 },  // D→A（左弧）
-};
-
-// Task 3/4 类似，路径方向不同
+```text
+第一层：编码器左右轮同步，让 L-R 接近 0
+第二层：D0 航向修正，让车头偏角接近 0
+停车：编码器距离达到目标后停，后续灰度完成后再做黑线辅助停车
 ```
 
-### 直线段控制逻辑
-
-```
-IMU_ResetYaw()          ← 进入直线时清零，消除弧线段积累的漂移
-
-while (dist < target) {
-    yaw = IMU_GetYaw()
-    err = yaw - 0
-    Motor_SetDifferential(base - Kp*err, base + Kp*err)
-    dist = Encoder_GetDistanceMM()
-}
-Motor_Stop()
-```
-
-### 直线段停车策略（已决策 2026-05-21）
-
-**分阶段实现**：
-
-- **阶段一（当前）：方案 A — 纯编码器里程停车**
-  - 走完 1000mm 即停，简单可验证
-  - 不依赖灰度传感器，现在就能跑
-
-- **阶段二（灰度完成后）：方案 C — 编码器 + 灰度双重触发**
-  - 满足任一条件停车：
-    1. 编码器 ≥ 900mm **且** 灰度检测到黑线 → 精确停在 B/D 点
-    2. 编码器 ≥ 1100mm 超时保底 → 防灰度漏检
-  - 用物理地标（黑线）修正里程误差，停车位置更准
-
-### 弧线段控制逻辑
-
-```
-Line_Follow()           ← 每次主循环调用
-// 内部：读灰度 → 计算偏差 → Motor_SetDifferential(left, right)
-// 终点判断：编码器累积距离 或 特定传感器图案（到达顶点时所有传感器离线）
-```
+当前正在 500mm 级别验证，不要直接恢复 1000mm Task 1。
 
 ---
 
 ## 当前进度
 
-### 已完成 ✅
+### 已完成
 
-- Keil 工程搭建（FLM补丁、RAM地址、编译0错误）
-- OLED 驱动（SSD1306/I2C0/PA0-PA1，先清后写规则）
-- 左轮 PWM（TIMA0/PA8）+ 方向控制（PA13/PA14）
-- 右轮 PWM（TIMA1/PA24）+ 方向控制（PA16/PA17）
-- 双轮前进验证：`Motor_SetDifferential(500, 500)` 实测通过
-- `Motor_Forward/Stop/Turn_Left/Turn_Right/SetDifferential` 全部实现
-- OLED 显示电机状态 `L:xxxx R:xxxx / RUNNING/STOP`
-- 蜂鸣器引脚选定（PB17），架构设计完成
-- **左右编码器配置完成（2026-05-21）**：
-  - 左编码器：PA12 → TIMG0 CCP0，CC0_DN_EVENT ✅ 实测脉冲累积正常
-  - 右编码器：PB16 → TIMG8 CCP1，CC1_DN_EVENT ✅ 待实物验证
-  - 关键：`EDGE_TIME` = DOWN 计数器 → 必须用 `CCx_DN_EVENT`（不是 UP_EVENT）
-  - API：`Encoder_GetLeftPulse()` / `Encoder_GetRightPulse()` / `Motor_GetTickMs()`
-  - 编码器接线注意：VCC/GND 反接会导致信号线恒定高电平，A 相无变化
+- Keil 工程搭建（FLM补丁、RAM地址、编译0错误）。
+- OLED 驱动（SSD1306/I2C0/PA0-PA1，先清后写规则）。
+- 左轮 PWM（TIMA0/PA8）+ 方向控制（PA13/PA14）。
+- 右轮 PWM（TIMA1/PA24）+ 方向控制（PA16/PA17）。
+- 双轮前进验证：`Motor_SetDifferential(500, 500)` 实测通过。
+- `Motor_Forward/Stop/Turn_Left/Turn_Right/SetDifferential` 全部实现。
+- OLED 显示电机状态与调试数据。
+- 蜂鸣器引脚选定（PB17），架构设计完成。
+- 左右编码器配置完成：
+  - 左编码器：PA12 → TIMG0 CCP0，CC0_DN_EVENT，实测脉冲累积正常。
+  - 右编码器：PB16 → TIMG8 CCP1，CC1_DN_EVENT，当前能输出右轮脉冲。
+  - 关键：`EDGE_TIME` = DOWN 计数器 → 必须用 `CCx_DN_EVENT`（不是 UP_EVENT）。
+  - API：`Encoder_GetLeftPulse()` / `Encoder_GetRightPulse()` / `Motor_GetTickMs()`。
+- OLED_Refresh 大包优化：I2C 事务数 1048 → 32，100ms 刷新不再过载。
+- 直线实验记录建立：`experiment_log.md` 记录参数、OLED D、左右脉冲、实测距离、偏角和结论。
+- 编码器第一层闭环已基本完成：最终 `E=L-R` 可压到约 -1~7，`C` 多数在 -2~14。
+- IMU UART 接收链路通，真实协议已解析通。
+- D0 航向修正已经接入 500mm 直线测试；当前 4 次中 3 次接近直线，但仍偶发右偏。
 
-### 下一步（按顺序）
+### 当前阶段：D0 航向直线调试
 
-1. ✅ **验证左右编码器**：实测 PPR≈270，WHEEL_CIRCUM=188.5mm，已写入 motor.c
+当前不是继续找 IMU 协议，也不是恢复完整路线状态机，而是解决 500mm D0 直线测试的起步稳定性。
 
-2. **调通编码器距离控制（方案 A）**
-   - 修复 ISR 假脉冲问题（已加状态检查，待验证）
-   - `Motor_GoDistance(50, 300)` 实测走 50mm 停车
-   - 若仍有 EMI 假脉冲，在 PA12/PB16 信号线对 GND 并联 100nF 滤波电容
+当前固件：`empty.c` D0 航向修正直线测试，会启动电机跑 500mm。
 
-3. **`user_buzzer/buzzer.c/h`**
-   - PB17 GPIO 初始化（输出，默认高电平=不响）
-   - `Buzzer_Init() / Buzzer_Beep(n)`：响 n 次，每次 100ms
+当前 OLED 显示：
 
-4. **`user_imu/imu.c/h`**
-   - UART1 初始化（PB6=RX, PB7=TX, 115200）
-   - UART1 RX 中断接收 ATK-IMU901 数据帧
-   - 解析偏航角
-   - 导出 `IMU_Init() / IMU_GetYaw() / IMU_ResetYaw()`
+```text
+D0: 航向候选误差
+E : 左右编码器误差 L-R
+EC: 编码器修正量
+HC: D0 航向修正量
+D : 编码器距离 mm
+L/R: 左右轮脉冲
+```
 
-5. **`empty.c` Task 1 直线走通（方案 A）**
-   - 陀螺仪航向闭环 + 编码器 1000mm 停车
-   - 到 B 点：停车 → LED 亮 → 蜂鸣器响 1 次
+当前最新测试：
 
-6. **灰度传感器模块**（数量待确认）
-   - 引脚从 PB2/PB3/PA27/PB20/PB24 选
-   - `Grayscale_Init() / Grayscale_GetPos() / Line_Follow()`
-   - 叠加到直线段停车逻辑 → 升级为方案 C
+```text
+几乎没有偏移，D0=9，E=6，HC=0
+往右偏45°，D0=119，E=4，HC=2
+几乎没有偏移，D0=44，E=4，HC=1
+往右偏10°，D0=14，E=4，HC=0
+```
 
-7. **`empty.c` 状态机重写（Task 2/3/4）**
-   - 段序列执行器
-   - 直线/弧线状态切换
+判断：
+
+- D0 修正方向已基本正确。
+- 偶发大偏那次停车时 `D0/E/HC` 都不大，说明偏差可能发生在起步瞬间。
+- 下一步不应继续盲目加 D0 增益，而应改启动段控制。
+
+### 已证伪的 IMU 路线
+
+- 不能继续把传统 Yaw 当航向：手动水平转 30° 时只变化约 1°。
+- 不能继续期待 WIT `CMD=0x52` 陀螺仪帧：实测未出现。
+- 不能把 `CMD=0x01/0x03` 当前候选通道当航向反馈：水平转动响应不合适。
+- 不能只凭「ATK-IMU901」这个模块名就认定当前输出一定是 `AA FF` 帧：实测是 `55 55`。
+
+---
+
+## 下一步（按顺序）
+
+1. **修改启动段控制**
+   - 当前启动段是 EC 和 HC 都关，只按固定 PWM 左 170 / 右 220。
+   - 建议改成：
+     ```text
+     0~250ms：启用编码器 EC，禁用 D0 的 HC
+     250ms 后：EC + HC 都启用
+     ```
+   - 理由：起步时 IMU 可能抖，先不让 HC 乱修；但编码器同步必须尽早开，防止左右轮起步脉冲拉开。
+
+2. **加快 OLED 刷新**
+   - 把 `IMU_DIAG_REFRESH_MS` 从 500ms 改到 200ms。
+   - 目的：观察起步瞬间 `D0/E/EC/HC` 是否跳变。
+
+3. **重新做 4 次 500mm 测试**
+   - 记录：最终偏角、停车时 `D0/E/EC/HC`。
+   - 重点看是否还出现右偏 45°/60° 这种偶发大偏。
+
+4. **若仍偶发大偏**
+   - 不要先加 D0 增益。
+   - 优先检查：地面摩擦、轮胎打滑、万向轮方向、重心、左右轮启动抓地差异。
+
+5. **直线稳定后再推 Task 1**
+   - 500mm 直线稳定后，再扩展到 1000mm。
+   - 然后再加 B 点停车声光提示。
+
+6. **`user_buzzer/buzzer.c/h`**
+   - PB17 GPIO 初始化（输出，默认高电平=不响）。
+   - `Buzzer_Init() / Buzzer_Beep(n)`：响 n 次，每次 100ms。
+
+7. **灰度传感器模块**
+   - 当前 `grayscale.c` 被临时移出编译列表，因为 GREY 宏未定义会报 17 个错。
+   - 恢复前必须补齐引脚宏、GPIO 初始化和 `Grayscale_Read()`。
+   - 后续用于弧线巡线与直线末端黑线停车。
+
+---
+
+## 协作与日志规则
+
+- 用户口令「总结这次对话。」时，自动更新 `PROJECT_MEMORY.md`、`LONG_TERM_MEMORY.md`、`plan.md`、`ROLLING.md`、`experiment_log.md`、`debug_log.md` 和长期 telos 记忆。
+- `experiment_log.md` 记录每轮测试参数、测试数据、现象和结论。
+- `debug_log.md` 记录每次报错、异常现象、判断、修复和验证。
 
 ---
 
 ## 不要踩的旧坑
 
-```
+```text
 不要把 RAM for Algorithm 改回 0x20000000
 不要重新启用 SysConfig Before Build（会覆盖 ti_msp_dl_config.c/h）
 不要用补空格方式覆盖 OLED 旧字符（|= 机制，空格无效）
@@ -255,13 +261,16 @@ Line_Follow()           ← 每次主循环调用
 不要在 Keil 根目录留同名空文件（会遮蔽 user_xxx 子目录的正确头文件）
 不要在 Keil 弹出"保存 X.h?"时随意点确定（会用编辑器空内容覆盖磁盘文件）
 不要把右轮 PA24 接线遗漏（J4接口，不在常用的 J1/J2 区域）
+不要把传统 Yaw/Roll/Pitch 当当前航向真相源
+不要继续把 ATK-IMU901 按 AA FF 帧解析，当前实测是 55 55
+不要把偶发大偏直接归咎于 D0 增益，先查启动段
 ```
 
 ---
 
 ## 关键数据备忘
 
-```
+```text
 OLED 地址:         0x3C（7-bit）
 左轮 PWM 周期:     1000（32MHz/1000 = 32kHz）
 右轮 PWM 周期:     1000
@@ -271,5 +280,9 @@ A→B 距离:         1000mm（100cm）
 C→D 距离:         1000mm（100cm）
 弧长（半圆r=40）:  约 1257mm（π×40×10）
 IMU UART 波特率:   115200
-IMU 输出频率:      100Hz（10ms/帧）
+IMU 当前协议:      55 55 CMD LEN DATA SUM
+当前航向候选:      D0 = CMD=0x02[0] - bias
+当前直线目标:      500mm
+当前基础 PWM:      左 170，右 220
+当前 D0 修正:      HC = D0 / 40，最大 ±50
 ```

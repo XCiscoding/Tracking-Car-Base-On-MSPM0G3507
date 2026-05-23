@@ -1,6 +1,6 @@
 # 项目记忆：C:\ti\empty
 
-最后更新：2026-05-20
+最后更新：2026-05-23
 
 长期记忆权威位置：
 
@@ -8,19 +8,23 @@
 C:\Users\26404\.claude\telos
 ```
 
-本项目对应长期专门文件：
+本项目关键文件：
 
 ```text
-C:\Users\26404\.claude\telos\mspm0-keil-flash-debug.md
+Keil工程:      C:\ti\empty\keil\empty_LP_MSPM0G3507_nortos_keil.uvprojx
+主程序真源:    C:\ti\empty\empty.c（工程里是 ../empty.c，不是 keil/empty.c）
+电机/编码器:   C:\ti\empty\keil\user_motor\motor.c/h
+IMU:           C:\ti\empty\keil\user_imu\imu.c/h
+OLED:          C:\ti\empty\keil\user_oled\oled.c/h
+实验记录:      C:\ti\empty\experiment_log.md
+滚动交接:      C:\ti\empty\ROLLING.md
 ```
 
-## 项目目标
+## 当前项目目标
 
-在 MSPM0G3507 LaunchPad 上通过 Keil MDK 编译并烧录 OLED 示例，SSD1306 屏幕显示：
+实现 2024 全国大学生电子设计竞赛 H 题「自动行驶小车」。当前优先级仍是先跑通 Task 1：A→B 直线 1000mm，到 B 点停车并声光提示。
 
-```text
-Hello, ZM!
-```
+当前阶段是 **500mm 直线控制分层调试**：编码器第一层闭环已经基本可用，IMU 协议已解析通，当前使用 `D0 = CMD=0x02[0] - bias` 作为航向候选，正在解决起步阶段导致的偶发大偏差。
 
 ## 固定环境
 
@@ -34,7 +38,7 @@ Compiler:  ARMCLANG V6.21
 Debugger:  CMSIS-DAP Debugger through onboard XDS110
 ```
 
-## 成功烧录条件
+## 烧录/构建硬约束
 
 ```text
 Device: MSPM0G3507
@@ -43,165 +47,185 @@ RAM for Algorithm Size:  0x1000
 Flash Download: Erase Full Chip + Program + Verify + Reset and Run
 Programming Algorithm: MSPM0G MAIN 128KB
 Image alignment rule: Code + RO-data must be divisible by 8
-Known-good size: 3152
-Known-good result: Programming Done. Verify OK.
 ```
 
-## 当前工程改动
+若出现 `Programming Failed`，优先检查 `Code + RO-data` 是否 8 字节对齐、FLM 补丁是否还在、是否引入 printf/snprintf/locale。
 
-`empty.c`：
+## 当前工程状态
 
-- `main()` 调用 `SYSCFG_DL_init()`。
-- OLED 初始化后显示 `Hello, ZM!`。
-- PA7 LED 设置为高电平。
-- 当前仍保留 `g_flash_program_padding[3]`。这次成功主要来自移除 printf 依赖，不是单靠 padding；后续若清理 padding，必须重新验证 `Code + RO-data` 对齐和烧录。
+### `empty.c`
 
-`ti_msp_dl_config.c/h`：
+当前是 **D0 航向修正 500mm 直线测试模式**，烧录后会启动电机，不再是无电机 RAW 诊断页。
 
-- 当前 Keil 工程实际编译的是根目录 `../ti_msp_dl_config.c`。
-- 已合并 PA7 和 OLED I2C 初始化。
-- OLED 使用 `I2C0`，`PA0 = IOMUX_PINCM1_PF_I2C0_SDA`，`PA1 = IOMUX_PINCM2_PF_I2C0_SCL`。
-- I2C 速度降为 100 kHz，降低上拉偏弱时的风险。
-
-`keil\user_oled\oled.c`：
-
-- 引入 `i2c_hal.h`，通过 `DL_I2C_Master_transmit()` 发送 OLED 命令/数据。
-- OLED 地址已改成明确的 7-bit 地址 `0x3C`。
-- 已删除 `<stdio.h>`。
-- `OLED_ShowNum()` 与 `OLED_ShowFloat()` 已改为手写格式化，避免链接 `_printf_*` 和 `locale$$data`。
-- **`OLED_ShowChar`**：绘制前先清除字符格子（`|=` 机制只置位不清零，必须显式清格）。
-- **`OLED_ClearLine(y)`**：清除整页 buffer（128字节），不触发刷新，供上层在覆盖写前调用。
-
-`keil\user_oled\i2c_hal.c`：
-
-- 阻塞发送已增加超时和错误退出，避免 OLED 未 ACK 或接线错误时卡死。
-
-`keil\ti_msp_dl_config.c/h`：
-
-- 与根目录配置同步为 `I2C0 + PA0/PA1 + PA7`，避免 OLED 源文件因 include 路径读到 Keil 目录旧头文件。
-
-`keil\empty_LP_MSPM0G3507_nortos_keil.uvprojx`：
-
-- Device 是 `MSPM0G3507`。
-- `BeforeMake/RunUserProg1` 已设为 `0`，SysConfig Before Build 禁用。
-- Flash Algorithm RAM 已是 `-FD20200000 -FC1000`。
-
-`keil\empty_LP_MSPM0G3507_nortos_keil.uvoptx`：
-
-- Flash Algorithm RAM 同步为 `-FD20200000 -FC1000`。
-
-DFP FLM：
-
-- 文件：
+OLED 显示：
 
 ```text
-D:\Keil5\ARM\PACK\TexasInstruments\MSPM0G1X0X_G3X0X_DFP\1.3.1\02_Flash_Programming\FlashARM\MSPM0G1X0X_G3X0X_MAIN_128KB.FLM
+D0: 航向候选误差，来自 CMD=0x02[0] 零偏后
+E : 左右编码器误差 L-R
+EC: 编码器修正量
+HC: D0 航向修正量
+D : 编码器距离 mm
+L/R: 左右轮脉冲
 ```
 
-- 已打 clear-status 补丁。
-- 备份：
+当前直线测试参数：
 
 ```text
-MSPM0G1X0X_G3X0X_MAIN_128KB.FLM.repatch_20260519_102026.bak
+STRAIGHT_TARGET_MM      500.0f
+STRAIGHT_BASE_PWM       220
+STRAIGHT_LEFT_TRIM      -50
+STRAIGHT_RIGHT_TRIM     0
+STRAIGHT_ENC_KP         2
+STRAIGHT_ENC_MAX_CORR   80
+STRAIGHT_D0_DIV         40
+STRAIGHT_D0_MAX_CORR    50
+STRAIGHT_LOOP_MS        20
+STRAIGHT_LAUNCH_MS      250
 ```
 
-## 项目内最重要的判断规则
-
-如果以后又出现：
+当前 D0 修正方向：
 
 ```text
-Full Chip Erase Done.
-Programming Failed!
-Error: Flash Download failed - "Cortex-M0+"
+left_pwm  = base + trim - EC - HC
+right_pwm = base + trim + EC + HC
 ```
 
-优先按这个顺序查：
+该方向比旧方向明显更对；不要轻易改回旧方向。
 
-1. Rebuild 后 `Code + RO-data` 是否能被 8 整除。
-2. map 文件中是否又出现 `_printf_*` 或 `locale$$data`。
-3. FLM 是否因为重装 DFP 被覆盖回原版。
-4. Flash Download 是否又改成了 `Erase Sectors`。
-5. RAM for Algorithm 是否仍为 `0x20200000 + 0x1000`。
+### `keil/user_imu/imu.c/h`
 
-## OLED 接线
+当前 IMU 真实协议已确认：
 
 ```text
-OLED SDA -> PA0
-OLED SCL -> PA1
-OLED VCC -> 3.3V
-OLED GND -> GND
-I2C address -> 0x3C
-MCU peripheral -> I2C0
+[0x55][0x55][CMD][LEN][DATA...][SUM]
 ```
 
-注意：PA0/PA1 在 MSPM0G350X 设备头文件中对应 `I2C0_SDA/SCL`，不是 `I2C1`。若代码初始化 I2C1，PA0/PA1 不会产生正确 I2C 波形。
+已知现象：
 
-## OLED 不亮排障规则
+- `CMD` 在 `0x01/0x02/0x03/0x06` 间切换。
+- `OK` 持续增长，checksum 解析已通。
+- `CMD=0x06` 解析出的传统 `Roll/Pitch/Yaw` 水平转动车身时只在 0~2 跳，不适合作为航向角。
+- `CMD=0x02[0]` 零偏后的 `D0` 是当前唯一可用航向候选：手动转动时左右方向有区分，回正接近 0。
+- `CMD=0x01/0x03` 当前显示过的通道不适合作为航向反馈。
 
-当 PA7 已经能置高但 OLED 不亮时，不要先回到烧录链路。按这个顺序查：
+### `keil/user_motor/motor.c`
 
-1. `main()` 是否已执行：PA7 能置高就是强证据。
-2. Keil 实际编译的 `ti_msp_dl_config.c` 是哪一份：当前是根目录 `../ti_msp_dl_config.c`。
-3. include 到的 `ti_msp_dl_config.h` 与实际编译的 `.c` 是否一致：当前必须同步根目录和 `keil/` 目录两份。
-4. pinmux 是否来自芯片头文件事实：PA0/PA1 对应 `I2C0_SDA/SCL`。
-5. OLED 地址是否用 7-bit `0x3C` 传给 DriverLib，不要再混用 8-bit 写地址 `0x78`。
-6. PA0/PA1 是否有 I2C 波形：无波形查 I2C 初始化和 pinmux；有波形无 ACK 查地址、接线、上拉和供电。
+距离参数：
 
-## 本次重要决策日志
+```c
+#define WHEEL_CIRCUM_MM        150.8f
+#define ENCODER_PPR            98
+#define DIST_PER_PULSE         (WHEEL_CIRCUM_MM / ENCODER_PPR)
+```
 
-用户侧关键决策：
+注意：`ENCODER_PPR=270` 已被 V1.2 实测基本证伪；`ENCODER_PPR=116` 是过渡修正值；当前 V1.3 由 450mm/292.5pulse 反推后改为 98。
 
-1. 决定暂停继续零散修 bug，转为重装和重建整个 Keil/CARE 环境。原因：前面问题同时涉及 Pack、Keil、DFP、SysConfig、Flash Algorithm、烧录配置，继续局部修复会让变量过多。
-2. 明确给出本地安装包路径，包括 `MDK539.EXE` 和 `TexasInstruments.MSPM0G1X0X_G3X0X_DFP.1.3.1.pack`。原因：把问题从“网上找版本”收敛为“验证本机安装链路”。
-3. 通过截图和完整 Build/Download 日志连续反馈实际现象。原因：Keil GUI 报错、Pack Installer 状态、Build Output 三者的信息不同，必须合并判断。
-4. 接受先禁用 Keil Before Build 的 SysConfig 命令。原因：当前 `ti_msp_dl_config.c/h` 已经手写 I2C/GPIO 配置，继续自动生成会覆盖手动修复；短期目标是先烧录成功。
-5. 按步骤测试 `Under Reset`、`0x1000` RAM for Algorithm、`Erase Full Chip`、不同镜像大小。原因：把 erase timeout、program failure、镜像对齐问题逐层分离。
-6. 最后用 Rebuild 后的 `3152` 和 `Programming Done / Verify OK` 确认成功。原因：这两个信号共同证明不是偶然擦除成功，而是完整编程和校验成功。
-7. 在 PA7 已能置高后，明确提出“烧录可能没问题，但是 OLED 的代码有问题”。原因：PA7 是程序已运行的硬证据，能把问题从烧录链路切到 OLED/I2C 运行链路。
-8. 在 OLED 修好后要求沉淀步骤、决策和可抽象能力。原因：这次成功依赖一条高价值判断链，必须让下一个 Agent 复用，而不是重新从 Keil/DFP 猜起。
+### `keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx`
 
-Agent 侧关键决策：
+- Keil 主程序路径是 `../empty.c`。
+- `grayscale.c` 当前被临时移出编译列表，只保留 `grayscale.h`。
+- 原因：灰度模块使用的 `GREY_x_PORT` 等宏还没在 `ti_msp_dl_config.h` 中定义，会导致 17 个编译错误。
+- 后续恢复灰度前，必须先补齐灰度引脚宏、GPIO 初始化和 DriverLib API 使用。
 
-1. 不再继续建议重装 Keil 本体。原因：CMSIS-DAP 已识别 SW-DP，Device Pack 已识别 MSPM0G3507，问题已经从安装层转移到 Flash Algorithm 和镜像内容层。
-2. 把 Debugger 方向固定为 `CMSIS-DAP Debugger`，不走 `TI XDS Debugger`。原因：Keil 32 位进程与 TI XDS 驱动链路存在 DLL/位数风险；CMSIS-DAP 已经实际连通。
-3. 把 RAM for Algorithm 固定为 `0x20200000 + 0x1000`。原因：MSPM0G3507 SRAM 基地址不是常见的 `0x20000000`，错误地址会导致 erase/program 异常。
-4. 保留 patched FLM，但要求用 `Erase Full Chip`。原因：补丁修复 ProgramPage clear status，但复用了原 `unprotectSector` 空间，可能影响 `Erase Sectors`。
-5. 从“Flash 算法坏”进一步下钻到“ProgramPage 长度 8 字节对齐”。原因：Full Chip Erase 已完成但 Programming Failed，且不同 `Code + RO-data` 值与失败稳定相关。
-6. 不再单靠 padding 解决尾部对齐，而是移除 `oled.c` 的 `snprintf/printf` 依赖。原因：map 尾部出现 `_printf_*` / `locale$$data`，库尾部改变了镜像布局；去掉依赖后尺寸变为 `3152` 并成功。
-7. 成功后立即压缩滚动文件并建立 `PROJECT_MEMORY.md`、`LONG_TERM_MEMORY.md`、`MEMORY_COMPRESSION.md`。原因：旧排障流水中有大量已证伪假设，下一个 Agent 需要的是成功路径和判断规则。
-8. 接受用户“顺着我的思路”的方向，把 PA7 置高视为启动链路证据。原因：这能避免把已证实可运行的问题重新归因到烧录失败。
-9. 第一时间检查 Keil 工程文件和 `.d` 依赖文件，确认实际编译的是根目录 `../ti_msp_dl_config.c`。原因：嵌入式工程常有多份同名配置文件，必须先确定编译真源。
-10. 对比根目录与 `keil/` 目录两套 `ti_msp_dl_config.c/h`。原因：发现了“头文件里有 I2C 宏，但真正编译的初始化函数没有 I2C 初始化”的错配。
-11. 不相信旧注释里的 `PA0/PA1 = I2C1`，转而查 SDK 设备头文件 `mspm0g350x.h`。原因：pinmux 必须以芯片头文件/数据手册事实为准；结果确认 PA0/PA1 对应 `I2C0`。
-12. 把修复做成最小闭环：统一配置真源、改成 I2C0、保留 PA7、OLED 地址改为 7-bit `0x3C`、I2C HAL 加超时。原因：既修正根因，又保留启动指示和后续排障可观测性。
-13. 用 `armclang` 独立编译修改文件而不是强行关闭用户的 UV4 GUI。原因：当已有 Keil GUI 进程占用时，命令行 Rebuild 没刷新对象文件；源码级编译可以先验证 API/宏正确性，同时不破坏用户现场。
+## 已完成能力
 
-## 可从本项目抽出的技能候选
+- Keil / CMSIS-DAP / FLM 补丁 / 8 字节对齐烧录链路已跑通。
+- OLED SSD1306 驱动已跑通：I2C0，PA0/PA1，7-bit 地址 `0x3C`。
+- OLED 刷新已优化为每页 129 字节大包，100ms 刷新不再明显过载。
+- 双轮 PWM 与方向控制已跑通。
+- 左右编码器中断计数已能工作，OLED 可显示左右脉冲。
+- 编码器距离标定已从 `PPR=270` 修正到当前 `PPR=98`，500mm 级测试中 OLED D 与实测距离已大致接近。
+- 编码器第一层闭环已验证可用：`KP=2/MAX=80` 时，最终 `E=L-R` 多数能压到 -1~7，`C` 多数在 -2~14。
+- IMU UART 原始字节能持续进入，真实帧头 `55 55` 已确认。
+- IMU 解析器已切到 `55 55 CMD LEN DATA SUM`，`OK` 持续增长。
+- 已确认传统 Yaw/Roll/Pitch 不可用，当前采用 D0 作为航向候选。
+- D0 直线修正已接入并验证方向基本正确：最近 4 次有 3 次接近直线。
 
-这些不是已经安装的 Codex Skill 文件，而是已经沉淀到本项目记忆里的可复用能力；如果以后要正式创建 Skill，可按这些名字拆分：
+## 关键实验数据
+
+### 编码器第一层闭环：左右轮同步已基本达成
+
+最终验证数据：
+
+| 次数 | D | L | R | E | C | 实测 | 偏转 | Yaw×10 |
+|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| 1 | 573 | 377 | 370 | 6 | 12 | 510 | 几乎不偏 | 0 |
+| 2 | 573 | 375 | 373 | 1 | 2 | 510 | 左偏约30° | 0 |
+| 3 | 612 | 403 | 394 | 7 | 14 | 520 | 右偏约15° | -5 |
+| 4 | 573 | 375 | 371 | 2 | 4 | 510 | 右偏约15° | -4 |
+| 5 | 570 | 371 | 371 | -1 | -2 | 510 | 左偏约30° | 5 |
+
+结论：编码器 P 的职责是让左右轮走得一样多，这一点已基本达成；车头角度仍偏，必须靠 IMU/灰度等航向或位置反馈。
+
+### IMU 排障关键结论
+
+- 静止 Rel 抖动小不代表 Yaw 是真实航向。
+- 手动水平转车 30° 时，传统 Yaw 只变化约 1°，不能接 PID。
+- ATK `AA FF` 解析被原始字节证伪；真实帧是 `55 55`。
+- `CMD=0x06` 的 R/P/Y 当前不可用作水平航向。
+- `D0 = CMD=0x02[0] - bias` 是目前唯一可用航向候选。
+
+### D0 候选通道确认
 
 ```text
-embedded-keil-pack-recovery
-用途：处理 Keil Pack Installer、DFP 安装、乱码路径、Device not found。
+正中静止：0，-346，233，-80，-190
+右转约30°：-3012，-288，341，-90，-200
+回正：-75，-336，235，-86，-190
+左转约30°：645，-346，153，-80，-175
+```
 
-mspm0-keil-flash-debug
-用途：处理 MSPM0G3507/MSPM0G 系列在 Keil 下 Erase/Program/Verify 失败。
+结论：`D0` 有明显水平转向响应且回正接近 0；`G1/G2/C0/C1` 不适合作为当前航向反馈。
 
-flm-binary-patch-forensics
-用途：对 Keil FLM 算法做备份、定位、二进制补丁、补丁后副作用记录。
+### D0 直线测试当前结果
 
-embedded-image-alignment-debug
-用途：用 Build Output 和 map 文件判断镜像尾部、Code+RO-data 对齐、printf/locale 链接污染。
+反转 D0 修正方向并加大到 `HC = D0 / 40` 后：
 
-sysconfig-vs-manual-config-control
-用途：判断什么时候禁用 SysConfig 自动生成，什么时候把 .syscfg 重新作为真源。
+```text
+几乎没有偏移，D0=9，E=6，HC=0
+往右偏45°，D0=119，E=4，HC=2
+几乎没有偏移，D0=44，E=4，HC=1
+往右偏10°，D0=14，E=4，HC=0
+```
 
-embedded-oled-i2c-pinmux-debug
-用途：处理“程序已运行但 OLED 不亮”的问题；用 GPIO 运行证据、I2C 波形、7-bit 地址、pinmux 真值、ACK/NACK 分层定位。
+判断：方向已经基本正确，但偶发大偏仍存在；大偏那次停车时 `D0/E/HC` 都不大，更像起步瞬间已经甩偏，而不是后半段 PID 没修回来。
 
-duplicate-config-truth-source-forensics
-用途：处理同名配置文件多份存在、include 路径和实际编译源文件不一致的问题；用工程文件、.d 依赖、map 符号确认真正生效的文件。
+## 当前下一步
 
-agent-rolling-memory-compression
-用途：长排障会话结束后，把流水压缩成滚动文件、项目记忆、长期记忆三层结构。
+1. 不要回退到 IMU 协议猜测，不要再把传统 Yaw/Roll/Pitch 当主线。
+2. 不要继续盲目加 D0 增益。
+3. 先改启动段：
+   ```text
+   0~250ms：启用编码器 EC，禁用 D0 的 HC
+   250ms 后：EC + HC 都启用
+   ```
+4. 把 OLED 刷新从 500ms 改到 200ms，观察起步瞬间 `D0/E/EC/HC`。
+5. 再测 4 次 500mm，记录最终偏角和停车时 `D0/E/EC/HC`。
+6. 如果仍偶发大偏，再查地面打滑、万向轮、重心、轮胎抓地和启动机械差异。
+
+## 调试规则
+
+- 一次只修当前失败的一层：现在是 D0 直线控制的起步稳定性。
+- 不要现在恢复完整路线状态机、灰度巡线或蜂鸣器。
+- 不要把当前偶发大偏简单归因于 D0 增益太小；最近数据更像启动瞬间问题。
+- 新增或改动 C 关键函数必须写函数级注释。
+- 用户口令「总结这次对话。」时，自动更新 `PROJECT_MEMORY.md`、`LONG_TERM_MEMORY.md`、`plan.md`、`ROLLING.md`、`experiment_log.md`、`debug_log.md` 和长期 telos 记忆。
+
+## 不要踩的旧坑
+
+```text
+不要把 RAM for Algorithm 改回 0x20000000
+不要重新启用 SysConfig Before Build（会覆盖 ti_msp_dl_config.c/h）
+不要用补空格方式覆盖 OLED 旧字符（|= 机制，空格无效）
+不要把 OLED I2C 配置到 I2C1 或 PA0/PA1 之外的引脚
+编码器用 EDGE_TIME（DOWN计数器）时，中断事件必须用 CCx_DN_EVENT（不能用 CCx_UP_EVENT）
+推挽输出编码器不能用导线直接短接GND测试
+编码器接线前用万用表确认 VCC/GND 极性
+不要用 TI XDS Debugger，用 CMSIS-DAP
+不要在 Keil 根目录留同名空文件遮蔽 user_xxx 子目录头文件
+不要在 Keil 弹出“保存 X.h?”时随意点确定
+不要把右轮 PA24 接线遗漏（J4接口）
+不要把 keil/empty.c 当主程序真相源，当前工程编译的是 ../empty.c
+不要把传统 Yaw/Roll/Pitch 当当前航向真相源
+不要把 ATK-IMU901 继续按 AA FF 帧解析，当前实测是 55 55
+不要把偶发大偏直接归咎于 D0 增益，先查启动段
 ```

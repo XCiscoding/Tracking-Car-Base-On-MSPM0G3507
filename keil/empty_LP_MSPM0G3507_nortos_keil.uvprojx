@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>__MSPM0G3507__</Define>
               <Undefine></Undefine>
-              <IncludePath>.;C:\ti\mspm0_sdk_2_01_00_03\source\third_party\CMSIS\Core\Include;C:\ti\mspm0_sdk_2_01_00_03\source;.\user_oled;.\user_motor;.\user_imu;.\user_buzzer</IncludePath>
+              <IncludePath>.;C:\ti\mspm0_sdk_2_01_00_03\source\third_party\CMSIS\Core\Include;C:\ti\mspm0_sdk_2_01_00_03\source;.\user_oled;.\user_motor;.\user_imu;.\user_buzzer;.\user_grayscale</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -488,6 +488,16 @@
               <FileName>buzzer.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\user_buzzer\buzzer.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Gray</GroupName>
+          <Files>
+            <File>
+              <FileName>grayscale.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\user_grayscale\grayscale.h</FilePath>
             </File>
           </Files>
         </Group>

@@ -1,6 +1,7 @@
 ./objects/imu.o: user_imu\imu.c user_imu\imu.h \
   D:\Keil5\ARM\ARMCLANG\include\stdint.h \
-  D:\Keil5\ARM\ARMCLANG\include\stdbool.h ti_msp_dl_config.h \
+  D:\Keil5\ARM\ARMCLANG\include\stdbool.h user_motor\motor.h \
+  ti_msp_dl_config.h \
   C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\msp\msp.h \
   C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\DeviceFamily.h \
   C:\ti\mspm0_sdk_2_01_00_03\source\ti\devices\msp\m0p\mspm0g350x.h \

@@ -83,7 +83,7 @@ int main(void)
 
     delay_ms(1000);     /* 等 1s 再启动，方便放好小车 */
 
-    Motor_GoDistance(50, 300);   /* 阻塞：走 50mm，占空比 300/1000=30% */
+    Motor_GoDistance(50, 200);   /* 阻塞：走 50mm，占空比 200/1000=20% */
 
     /* 停车后显示实际走了多少脉冲 */
     OLED_ClearLine(0);

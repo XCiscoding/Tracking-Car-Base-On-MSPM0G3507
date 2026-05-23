@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"D:/Keil5/UV4/UV4.exe\" -b \"c:/ti/empty/keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx\" -j0)",
+      "Bash(ls -la \"/c/ti/empty\")",
+      "Read(//c/ti/empty/**)",
+      "Read(//c/ti/empty/电赛小车终极版（最终版\\)/code/**)",
+      "WebSearch",
+      "Bash(\"/d/Keil5/UV4/UV4.exe\" -b \"keil/empty_LP_MSPM0G3507_nortos_keil.uvprojx\" -j0)",
+      "Bash(python -)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\26404\\.claude\\telos"
+    ]
+  }
+}
